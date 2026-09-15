@@ -158,51 +158,49 @@ class MainActivity : Activity() {
                 inputStream.close()
             }
 
-            addTableRow(tableLayout, "Пакет / Направление", "Данные / Байты ответа", true)
+            addTableRow(tableLayout, "Тип пакета", "Байты / Данные ЭБУ", true)
 
             var i = 0
+            var currentLabel = "Диагностика"
+
             while (i < lines.size) {
                 val cur = lines[i]
-                if (cur.equals("Send", ignoreCase = true) || cur.equals("Receive", ignoreCase = true)) {
-                    var payload = ""
-                    if (i + 1 < lines.size) {
-                        val next = lines[i + 1]
-                        if (!next.equals("Send", ignoreCase = true) && 
-                            !next.equals("Receive", ignoreCase = true) && 
-                            !next.equals("Time", ignoreCase = true)) {
-                            payload = next
-                            i++
-                        }
-                    }
-                    addTableRow(tableLayout, "[$cur]", payload, false)
-                    totalRows++
-                } else if (cur.equals("Time", ignoreCase = true)) {
-                    // Пропускаем метки времени, чтобы лог был чистым и компактным
-                    if (i + 1 < lines.size) {
+
+                when {
+                    cur.equals("Send", ignoreCase = true) -> {
+                        currentLabel = "📤 Запрос (Send)"
                         i++
                     }
-                } else {
-                    when {
-                        cur.contains("=") -> {
-                            val parts = cur.split("=", limit = 2)
-                            addTableRow(tableLayout, parts[0].trim(), parts[1].trim(), false)
-                            totalRows++
+                    cur.equals("Receive", ignoreCase = true) -> {
+                        currentLabel = "📥 Ответ (Receive)"
+                        i++
+                    }
+                    cur.equals("Time", ignoreCase = true) || 
+                    cur.equals("State", ignoreCase = true) || 
+                    cur.equals("Connect", ignoreCase = true) || 
+                    cur.equals("Android SDK", ignoreCase = true) || 
+                    cur.equals("Android device", ignoreCase = true) || 
+                    cur.equals("Device", ignoreCase = true) -> {
+                        // Пропускаем служебную строку и сопутствующий таймстамп
+                        if (i + 1 < lines.size) {
+                            val next = lines[i + 1]
+                            if (next.all { it.isDigit() || it == '.' || it == ':' } || next.length < 15) {
+                                i++
+                            }
                         }
-                        cur.contains(":") && !cur.startsWith("[") -> {
-                            val parts = cur.split(":", limit = 2)
-                            addTableRow(tableLayout, parts[0].trim(), parts[1].trim(), false)
-                            totalRows++
-                        }
-                        else -> {
-                            addTableRow(tableLayout, cur, "", false)
-                            totalRows++
-                        }
+                        i++
+                    }
+                    else -> {
+                        // Выводим строку, привязав к последнему маркеру Send/Receive
+                        addTableRow(tableLayout, currentLabel, cur, false)
+                        totalRows++
+                        currentLabel = "Данные"
+                        i++
                     }
                 }
-                i++
             }
 
-            statusText.text = "Лог расшифрован. Строк: $totalRows"
+            statusText.text = "Лог расшифрован. Записей: $totalRows"
             contentContainer.addView(tableLayout)
 
         } catch (e: Exception) {
