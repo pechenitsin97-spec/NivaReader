@@ -2,10 +2,12 @@ package pro.niva.reader
 
 import android.app.Activity
 import android.content.Intent
+import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
 import android.view.Gravity
 import android.widget.Button
+import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TableLayout
@@ -25,21 +27,22 @@ class MainActivity : Activity() {
         
         val mainLayout = LinearLayout(this)
         mainLayout.orientation = LinearLayout.VERTICAL
-        mainLayout.setPadding(20, 20, 20, 20)
+        mainLayout.setPadding(16, 16, 16, 16)
 
         val title = TextView(this)
         title.text = "Niva Reader: OpenDiag Log Viewer"
-        title.textSize = 20f
-        title.setPadding(0, 0, 0, 12)
+        title.textSize = 18f
+        title.setTextColor(Color.BLACK)
+        title.setPadding(0, 0, 0, 8)
         mainLayout.addView(title)
 
         val menuLayout = LinearLayout(this)
         menuLayout.orientation = LinearLayout.VERTICAL
-        menuLayout.setPadding(0, 0, 0, 12)
+        menuLayout.setPadding(0, 0, 0, 8)
 
         val row1 = LinearLayout(this)
         row1.orientation = LinearLayout.HORIZONTAL
-        row1.setPadding(0, 0, 0, 8)
+        row1.setPadding(0, 0, 0, 6)
 
         val btnEngine = Button(this)
         btnEngine.text = "Двигатель"
@@ -90,21 +93,30 @@ class MainActivity : Activity() {
 
         statusText = TextView(this)
         statusText.text = "Выберите раздел выше или откройте лог-файл."
-        statusText.textSize = 14f
+        statusText.textSize = 13f
+        statusText.setTextColor(Color.DARK_GRAY)
         statusText.setPadding(0, 4, 0, 8)
         mainLayout.addView(statusText)
 
+        // Контейнер для таблицы
         contentContainer = LinearLayout(this)
         contentContainer.orientation = LinearLayout.VERTICAL
-        contentContainer.setPadding(0, 8, 0, 8)
+        contentContainer.layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        )
 
-        val scrollView = ScrollView(this)
-        scrollView.addView(contentContainer)
-        mainLayout.addView(scrollView)
+        val verticalScroll = ScrollView(this)
+        verticalScroll.layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.MATCH_PARENT
+        )
+        verticalScroll.addView(contentContainer)
+        mainLayout.addView(verticalScroll)
 
         setContentView(mainLayout)
 
-        showManualText("Добро пожаловать!", "Выберите нужный раздел мануала или откройте лог OpenDiag для просмотра в виде таблицы с колонками.")
+        showManualText("Добро пожаловать!", "Выберите нужный раздел мануала или откройте лог OpenDiag. Таблица будет доступна с прокруткой в стороны.")
     }
 
     private fun showManualText(heading: String, body: String) {
@@ -113,13 +125,15 @@ class MainActivity : Activity() {
 
         val tvHeading = TextView(this)
         tvHeading.text = heading
-        tvHeading.textSize = 18f
+        tvHeading.textSize = 16f
+        tvHeading.setTextColor(Color.BLACK)
         tvHeading.setTypeface(null, android.graphics.Typeface.BOLD)
-        tvHeading.setPadding(0, 0, 0, 12)
+        tvHeading.setPadding(0, 0, 0, 8)
 
         val tvBody = TextView(this)
         tvBody.text = body
-        tvBody.textSize = 15f
+        tvBody.textSize = 14f
+        tvBody.setTextColor(Color.DKGRAY)
 
         contentContainer.addView(tvHeading)
         contentContainer.addView(tvBody)
@@ -139,7 +153,10 @@ class MainActivity : Activity() {
         var totalRows = 0
 
         val tableLayout = TableLayout(this)
-        tableLayout.isStretchAllColumns = true
+        tableLayout.layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        )
 
         try {
             val inputStream = contentResolver.openInputStream(uri)
@@ -147,23 +164,23 @@ class MainActivity : Activity() {
                 val reader = BufferedReader(InputStreamReader(inputStream))
                 var line = reader.readLine()
                 
-                // Определяем разделитель в файле лога (точка с запятой, запятая или табуляция)
                 var delimiter = ";"
                 if (line != null) {
                     if (line.contains(",")) delimiter = ","
                     else if (line.contains("\t")) delimiter = "\t"
                     else if (line.contains(";")) delimiter = ";"
 
-                    // Первая строка — шапка таблицы (названия колонок датчиков)
+                    // Шапка таблицы
                     val headers = line.split(delimiter)
                     val headerRow = TableRow(this)
-                    headerRow.setPadding(0, 8, 0, 8)
+                    headerRow.setPadding(0, 4, 0, 4)
                     for (h in headers) {
                         val tv = TextView(this)
-                        tv.text = h.trim()
-                        tv.textSize = 13f
+                        tv.text = " ${h.trim()} "
+                        tv.textSize = 12f
+                        tv.setTextColor(Color.BLACK)
                         tv.setTypeface(null, android.graphics.Typeface.BOLD)
-                        tv.setPadding(6, 6, 6, 6)
+                        tv.setPadding(8, 6, 8, 6)
                         tv.gravity = Gravity.CENTER
                         headerRow.addView(tv)
                     }
@@ -171,19 +188,20 @@ class MainActivity : Activity() {
                     totalRows++
                 }
 
-                // Последующие строки — значения параметров датчиков
+                // Данные строк
                 line = reader.readLine()
                 while (line != null) {
                     val t = line.trim()
                     if (t.isNotEmpty()) {
                         val cols = t.split(delimiter)
                         val row = TableRow(this)
-                        row.setPadding(0, 4, 0, 4)
+                        row.setPadding(0, 2, 0, 2)
                         for (c in cols) {
                             val tv = TextView(this)
-                            tv.text = c.trim()
-                            tv.textSize = 12f
-                            tv.setPadding(6, 4, 6, 4)
+                            tv.text = " ${c.trim()} "
+                            tv.textSize = 11f
+                            tv.setTextColor(Color.DKGRAY)
+                            tv.setPadding(8, 4, 8, 4)
                             tv.gravity = Gravity.CENTER
                             row.addView(tv)
                         }
@@ -196,11 +214,21 @@ class MainActivity : Activity() {
                 inputStream.close()
             }
 
-            statusText.text = "Лог открыт как в DiagView. Строк: $totalRows"
-            contentContainer.addView(tableLayout)
+            statusText.text = "Лог загружен. Строк: $totalRows (двигайте таблицу в стороны)"
+
+            // Оборачиваем таблицу в HorizontalScrollView, чтобы можно было крутить вправо-влево
+            val horizontalScroll = HorizontalScrollView(this)
+            horizontalScroll.layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            horizontalScroll.addView(tableLayout)
+
+            contentContainer.addView(horizontalScroll)
 
         } catch (e: Exception) {
-            statusText.text = "Ошибка чтения файла: ${e.localizedMessage}"
+            statusText.text = "Ошибка чтения: ${e.localizedMessage}"
         }
     }
 }
+
