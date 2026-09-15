@@ -6,7 +6,7 @@
             if (parts.size >= 3) {
                 val did = "${parts[1]}${parts[2]}"
                 
-                // 1. Если это паспортные данные (VIN, версия ПО и т.д. в диапазоне 0090 - 00A3)
+                // 1. Паспортные данные (текст)
                 if (did >= "0090" && did <= "00A3") {
                     val sb = StringBuilder()
                     for (i in 3 until parts.size) {
@@ -24,17 +24,27 @@
                     }
                 }
 
-                // 2. Если это основной поток датчиков (DID 0001)
-                if (did == "0001" && parts.size > 10) {
-                    // Возьмем для примера пару байт из потока и применим коэффициенты из XML
-                    val scale = ecuParamsMap["B17s01"]?.getOrNull(0) ?: 1
-                    
-                    // Допустим, обороты или температура зашиты в определенных байтах пакета
-                    val rawByte1 = parts[5].toInt(16)
-                    val rawByte2 = parts[6].toInt(16)
-                    val combined = (rawByte1 * 256) + rawByte2
+                // 2. Основной поток датчиков (DID 0001)
+                if (did == "0001" && parts.size > 15) {
+                    // Индексы байтов для Bosch ME17.9.7
+                    // Обороты двигателя (2 байта)
+                    val rpmA = parts[5].toInt(16)
+                    val rpmB = parts[6].toInt(16)
+                    val rpm = ((rpmA * 256) + rpmB) / 4
 
-                    return "🚗 Телеметрия [0001] (scale: $scale): сырые байты = $combined"
+                    // Температура охлаждающей жидкости
+                    val coolantRaw = parts[8].toInt(16)
+                    val coolant = coolantRaw - 40
+
+                    // Положение дроссельной заслонки
+                    val tpsRaw = parts[12].toInt(16)
+                    val tps = (tpsRaw * 100) / 255
+
+                    // Напряжение бортовой сети
+                    val voltRaw = parts[18].toInt(16)
+                    val voltage = voltRaw / 10.0
+
+                    return "🔥 Обороты: $rpm об/мин | 🌡 Антифриз: $coolant°C | ⚡ Дроссель: $tps% | 🔋 АКБ: ${voltage}В"
                 }
 
                 return "Bosch DID пакет [$did] (Байт всего: ${parts.size - 3})"
