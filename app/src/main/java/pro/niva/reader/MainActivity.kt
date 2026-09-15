@@ -94,11 +94,10 @@ class MainActivity : Activity() {
         statusText = TextView(this)
         statusText.text = "Выберите раздел выше или откройте лог-файл."
         statusText.textSize = 13f
-        statusText.setTextColor(Color.DARK_GRAY)
+        statusText.setTextColor(Color.DKGRAY) // Исправлено на DKGRAY
         statusText.setPadding(0, 4, 0, 8)
         mainLayout.addView(statusText)
 
-        // Контейнер для таблицы
         contentContainer = LinearLayout(this)
         contentContainer.orientation = LinearLayout.VERTICAL
         contentContainer.layoutParams = LinearLayout.LayoutParams(
@@ -133,7 +132,7 @@ class MainActivity : Activity() {
         val tvBody = TextView(this)
         tvBody.text = body
         tvBody.textSize = 14f
-        tvBody.setTextColor(Color.DKGRAY)
+        tvBody.setTextColor(Color.DKGRAY) // Исправлено на DKGRAY
 
         contentContainer.addView(tvHeading)
         contentContainer.addView(tvBody)
@@ -170,7 +169,6 @@ class MainActivity : Activity() {
                     else if (line.contains("\t")) delimiter = "\t"
                     else if (line.contains(";")) delimiter = ";"
 
-                    // Шапка таблицы
                     val headers = line.split(delimiter)
                     val headerRow = TableRow(this)
                     headerRow.setPadding(0, 4, 0, 4)
@@ -188,7 +186,6 @@ class MainActivity : Activity() {
                     totalRows++
                 }
 
-                // Данные строк
                 line = reader.readLine()
                 while (line != null) {
                     val t = line.trim()
@@ -200,7 +197,7 @@ class MainActivity : Activity() {
                             val tv = TextView(this)
                             tv.text = " ${c.trim()} "
                             tv.textSize = 11f
-                            tv.setTextColor(Color.DKGRAY)
+                            tv.setTextColor(Color.DKGRAY) // Исправлено на DKGRAY
                             tv.setPadding(8, 4, 8, 4)
                             tv.gravity = Gravity.CENTER
                             row.addView(tv)
@@ -216,7 +213,6 @@ class MainActivity : Activity() {
 
             statusText.text = "Лог загружен. Строк: $totalRows (двигайте таблицу в стороны)"
 
-            // Оборачиваем таблицу в HorizontalScrollView, чтобы можно было крутить вправо-влево
             val horizontalScroll = HorizontalScrollView(this)
             horizontalScroll.layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
@@ -231,4 +227,3 @@ class MainActivity : Activity() {
         }
     }
 }
-
