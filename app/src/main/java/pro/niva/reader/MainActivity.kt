@@ -7,11 +7,8 @@ import android.net.Uri
 import android.os.Bundle
 import android.view.Gravity
 import android.widget.Button
-import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.ScrollView
-import android.widget.TableLayout
-import android.widget.TableRow
 import android.widget.TextView
 import java.io.BufferedReader
 import java.io.InputStreamReader
@@ -30,7 +27,7 @@ class MainActivity : Activity() {
         mainLayout.setPadding(16, 16, 16, 16)
 
         val title = TextView(this)
-        title.text = "Niva Reader: OpenDiag & Firmware"
+        title.text = "Niva Reader: OpenDiag Log Monitor"
         title.textSize = 18f
         title.setTextColor(Color.BLACK)
         title.setPadding(0, 0, 0, 8)
@@ -79,17 +76,8 @@ class MainActivity : Activity() {
         row1.addView(btnAudio)
         menuLayout.addView(row1)
 
-        // Кнопка проверки прошивки с точным именем файла
-        val btnFirmware = Button(this)
-        btnFirmware.text = "🔍 Проверить прошивку (B515HJ04)"
-        btnFirmware.layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
-        btnFirmware.setOnClickListener {
-            readFirmwareFile()
-        }
-        menuLayout.addView(btnFirmware)
-
         val btnOpenLog = Button(this)
-        btnOpenLog.text = "📁 Открыть лог OpenDiag (.log / .txt / .csv)"
+        btnOpenLog.text = "📁 Открыть сырой лог OpenDiag (.log / .txt)"
         btnOpenLog.layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
         btnOpenLog.setOnClickListener {
             val intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
@@ -101,7 +89,7 @@ class MainActivity : Activity() {
         mainLayout.addView(menuLayout)
 
         statusText = TextView(this)
-        statusText.text = "Выберите раздел выше или проверьте прошивку."
+        statusText.text = "Выберите раздел мануала или откройте лог-файл."
         statusText.textSize = 13f
         statusText.setTextColor(Color.DKGRAY)
         statusText.setPadding(0, 4, 0, 8)
@@ -124,7 +112,7 @@ class MainActivity : Activity() {
 
         setContentView(mainLayout)
 
-        showManualText("Добро пожаловать!", "Выберите нужный раздел мануала, откройте лог OpenDiag или нажмите кнопку проверки прошивки.")
+        showManualText("Добро пожаловать!", "Выберите нужный раздел мануала или откройте лог OpenDiag для анализа обмена с ЭБУ.")
     }
 
     private fun showManualText(heading: String, body: String) {
@@ -147,34 +135,6 @@ class MainActivity : Activity() {
         contentContainer.addView(tvBody)
     }
 
-    private fun readFirmwareFile() {
-        contentContainer.removeAllViews()
-        try {
-            // Читаем файл с точным именем, которое вы загрузили в assets
-            val inputStream = assets.open("10SW004677_B515HJ04.bin")
-            val size = inputStream.available()
-            
-            val buffer = ByteArray(minOf(size, 32))
-            inputStream.read(buffer)
-            inputStream.close()
-
-            val hexHeader = buffer.joinToString(" ") { String.format("%02X", it) }
-
-            statusText.text = "Прошивка найдена! Размер: $size байт"
-            showManualText(
-                "Анализ прошивки Bosch ME17.9.7 (B515HJ04)",
-                "Файл успешно прочитан из памяти приложения (assets).\n\n• Имя файла: 10SW004677_B515HJ04.bin\n• Общий размер: $size байт\n• Первые 32 байта (HEX): $hexHeader"
-            )
-
-        } catch (e: Exception) {
-            statusText.text = "Файл прошивки не найден"
-            showManualText(
-                "Ошибка чтения прошивки",
-                "Не удалось обнаружить файл '10SW004677_B515HJ04.bin' в папке assets.\n\nУбедитесь, что загруженный файл в репозитории называется ровно так же."
-            )
-        }
-    }
-
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == PICK_FILE_REQUEST && resultCode == Activity.RESULT_OK) {
@@ -186,13 +146,7 @@ class MainActivity : Activity() {
 
     private fun readAndParseLogFile(uri: Uri) {
         contentContainer.removeAllViews()
-        var totalRows = 0
-
-        val tableLayout = TableLayout(this)
-        tableLayout.layoutParams = LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.WRAP_CONTENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT
-        )
+        var totalEvents = 0
 
         try {
             val inputStream = contentResolver.openInputStream(uri)
@@ -200,47 +154,53 @@ class MainActivity : Activity() {
                 val reader = BufferedReader(InputStreamReader(inputStream))
                 var line = reader.readLine()
                 
-                var delimiter = ";"
-                if (line != null) {
-                    if (line.contains(",")) delimiter = ","
-                    else if (line.contains("\t")) delimiter = "\t"
-                    else if (line.contains(";")) delimiter = ";"
+                var currentTime = ""
 
-                    val headers = line.split(delimiter)
-                    val headerRow = TableRow(this)
-                    headerRow.setPadding(0, 4, 0, 4)
-                    for (h in headers) {
-                        val tv = TextView(this)
-                        tv.text = " ${h.trim()} "
-                        tv.textSize = 12f
-                        tv.setTextColor(Color.BLACK)
-                        tv.setTypeface(null, android.graphics.Typeface.BOLD)
-                        tv.setPadding(8, 6, 8, 6)
-                        tv.gravity = Gravity.CENTER
-                        headerRow.addView(tv)
-                    }
-                    tableLayout.addView(headerRow)
-                    totalRows++
-                }
-
-                line = reader.readLine()
                 while (line != null) {
-                    val t = line.trim()
-                    if (t.isNotEmpty()) {
-                        val cols = t.split(delimiter)
-                        val row = TableRow(this)
-                        row.setPadding(0, 2, 0, 2)
-                        for (c in cols) {
-                            val tv = TextView(this)
-                            tv.text = " ${c.trim()} "
-                            tv.textSize = 11f
-                            tv.setTextColor(Color.DKGRAY)
-                            tv.setPadding(8, 4, 8, 4)
-                            tv.gravity = Gravity.CENTER
-                            row.addView(tv)
+                    val text = line.trim()
+                    if (text.isNotEmpty()) {
+                        // Распознаем блоки лога OpenDiag
+                        if (text.startsWith("Time:")) {
+                            currentTime = text.replace("Time:", "").trim()
+                        } else if (text.startsWith("Send:") || text.startsWith("Receive:") || text.startsWith("AppVersion") || text.startsWith("ECU")) {
+                            
+                            // Создаем красивую карточку для каждой записи обмена
+                            val cardLayout = LinearLayout(this)
+                            cardLayout.orientation = LinearLayout.VERTICAL
+                            cardLayout.setPadding(12, 8, 12, 8)
+                            cardLayout.setBackgroundColor(Color.parseColor("#F0F0F0"))
+                            
+                            val lp = LinearLayout.LayoutParams(
+                                LinearLayout.LayoutParams.MATCH_PARENT,
+                                LinearLayout.LayoutParams.WRAP_CONTENT
+                            )
+                            lp.setMargins(0, 4, 0, 4)
+                            cardLayout.layoutParams = lp
+
+                            if (currentTime.isNotEmpty() && text.startsWith("Send")) {
+                                val tvTime = TextView(this)
+                                tvTime.text = "⏱ Время: $currentTime"
+                                tvTime.textSize = 11f
+                                tvTime.setTextColor(Color.GRAY)
+                                cardLayout.addView(tvTime)
+                            }
+
+                            val tvData = TextView(this)
+                            tvData.text = text
+                            tvData.textSize = 13f
+                            
+                            if (text.startsWith("Send:")) {
+                                tvData.setTextColor(Color.parseColor("#0066CC")) // Синий для запросов
+                            } else if (text.startsWith("Receive:")) {
+                                tvData.setTextColor(Color.parseColor("#008800")) // Зеленый для ответов ЭБУ
+                            } else {
+                                tvData.setTextColor(Color.BLACK)
+                            }
+                            
+                            cardLayout.addView(tvData)
+                            contentContainer.addView(cardLayout)
+                            totalEvents++
                         }
-                        tableLayout.addView(row)
-                        totalRows++
                     }
                     line = reader.readLine()
                 }
@@ -248,19 +208,10 @@ class MainActivity : Activity() {
                 inputStream.close()
             }
 
-            statusText.text = "Лог загружен. Строк: $totalRows (двигайте таблицу в стороны)"
-
-            val horizontalScroll = HorizontalScrollView(this)
-            horizontalScroll.layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-            horizontalScroll.addView(tableLayout)
-
-            contentContainer.addView(horizontalScroll)
+            statusText.text = "Лог успешно разобран. Записей: $totalEvents"
 
         } catch (e: Exception) {
-            statusText.text = "Ошибка чтения: ${e.localizedMessage}"
+            statusText.text = "Ошибка чтения лога: ${e.localizedMessage}"
         }
     }
 }
