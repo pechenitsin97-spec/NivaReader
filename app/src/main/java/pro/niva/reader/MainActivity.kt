@@ -21,7 +21,7 @@ class MainActivity : Activity() {
     private lateinit var statusText: TextView
     private val PICK_FILE_REQUEST = 101
 
-    // Хранилище для таблиц коэффициентов из XML[span_2](start_span)[span_2](end_span)
+    // Хранилище для таблиц коэффициентов из XML[span_1](start_span)[span_1](end_span)
     private val ecuParamsMap = mutableMapOf<String, List<Int>>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -85,7 +85,6 @@ class MainActivity : Activity() {
         setContentView(mainLayout)
     }
 
-    // Парсер XML-файла с коэффициентами[span_3](start_span)[span_3](end_span)
     private fun loadEcuParams(assetManager: AssetManager): Map<String, List<Int>> {
         val map = mutableMapOf<String, List<Int>>()
         try {
@@ -169,8 +168,8 @@ class MainActivity : Activity() {
                         tvData.setTextColor(if (text.startsWith("Send:")) Color.parseColor("#0066CC") else Color.parseColor("#008800"))
                         cardLayout.addView(tvData)
 
-                        // Применяем декодер с учетом загруженных таблиц
-                        val decodedPid = tryDecodeOBDPid(text)
+                        // Распознаем Bosch ME17 пакеты (Receive: 62 ...)
+                        val decodedPid = tryDecodeBoschPacket(text)
                         if (decodedPid != null) {
                             val tvPid = TextView(this)
                             tvPid.text = "📊 $decodedPid"
@@ -188,40 +187,36 @@ class MainActivity : Activity() {
                 reader.close()
                 inputStream.close()
             }
-            statusText.text = "Лог разобран. Записей: $totalEvents (Коэффициенты ЭБУ активны)"
+            statusText.text = "Лог разобран. Записей: $totalEvents (Bosch ME17 парсер активен)"
         } catch (e: Exception) {
-            statusText.statusTextSafe("Ошибка чтения лога: ${e.localizedMessage}")
+            statusText.text = "Ошибка чтения лога: ${e.localizedMessage}"
         }
     }
 
-    private fun TextView.statusTextSafe(msg: String) {
-        text = msg
-    }
-
-    private fun tryDecodeOBDPid(line: String): String? {
-        if (!line.startsWith("Receive:")) return null
+    // Декодировщик ответов Bosch ME17 (начинаются с Receive: 62)
+    private fun tryDecodeBoschPacket(line: String): String? {
+        if (!line.startsWith("Receive: 62")) return null
         try {
             val clean = line.replace("Receive:", "").trim()
             val parts = clean.split(" ")
-            if (parts.size >= 3 && parts[0] == "41") {
-                val pid = parts[1]
-                when (pid) {
-                    "05" -> {
-                        val a = parts[2].toInt(16)
-                        // Пример использования динамического смещения из XML (например, из карты B17o01)[span_4](start_span)[span_4](end_span)
-                        val offset = ecuParamsMap["B17o01"]?.getOrNull(0) ?: 40
-                        return "Температура антифриза: ${a - offset} °C"
-                    }
-                    "0C" -> {
-                        if (parts.size >= 4) {
-                            val a = parts[2].toInt(16)
-                            val b = parts[3].toInt(16)
-                            // Пример использования коэффициента из массива B17s01[span_5](start_span)[span_5](end_span)
-                            val scale = ecuParamsMap["B17s01"]?.getOrNull(0) ?: 4
-                            return "Обороты двигателя: ${((a * 256) + b) / scale} об/мин"
+            if (parts.size >= 3) {
+                // Идентификатор параметра (например, 00 01)
+                val did = "${parts[1]}${parts[2]}"
+                
+                // Берем коэффициенты из XML для расчетов (если они есть в карте)
+                val scale = ecuParamsMap["B17s01"]?.getOrNull(0) ?: 1
+                val offset = ecuParamsMap["B17o01"]?.getOrNull(0) ?: 0
+
+                when (did) {
+                    "0001" -> {
+                        if (parts.size > 5) {
+                            // Пример расчета по байтам с применением коэффициентов из XML
+                            val valRaw = parts[5].toInt(16)
+                            return "Параметр ЭБУ [0001] (scale: $scale, offset: $offset): сырое значение = $valRaw"
                         }
                     }
                 }
+                return "Bosch DID пакет [$did] (Байт всего: ${parts.size - 3})"
             }
         } catch (e: Exception) {}
         return null
