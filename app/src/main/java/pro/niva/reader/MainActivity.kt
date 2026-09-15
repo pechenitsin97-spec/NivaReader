@@ -28,7 +28,7 @@ class MainActivity : Activity() {
         mainLayout.setPadding(20, 20, 20, 20)
 
         val title = TextView(this)
-        title.text = "Niva Reader: Диагностика"
+        title.text = "Niva Reader: OpenDiag Log Viewer"
         title.textSize = 20f
         title.setPadding(0, 0, 0, 12)
         mainLayout.addView(title)
@@ -77,7 +77,7 @@ class MainActivity : Activity() {
         menuLayout.addView(row1)
 
         val btnOpenLog = Button(this)
-        btnOpenLog.text = "📁 Выбрать лог-файл (.log / .txt)"
+        btnOpenLog.text = "📁 Открыть лог OpenDiag (.log / .txt / .csv)"
         btnOpenLog.layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
         btnOpenLog.setOnClickListener {
             val intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
@@ -89,7 +89,7 @@ class MainActivity : Activity() {
         mainLayout.addView(menuLayout)
 
         statusText = TextView(this)
-        statusText.text = "Выберите раздел выше или загрузите лог-файл."
+        statusText.text = "Выберите раздел выше или откройте лог-файл."
         statusText.textSize = 14f
         statusText.setPadding(0, 4, 0, 8)
         mainLayout.addView(statusText)
@@ -104,7 +104,7 @@ class MainActivity : Activity() {
 
         setContentView(mainLayout)
 
-        showManualText("Добро пожаловать!", "Выберите нужный раздел мануала или загрузите лог-файл для вывода в виде таблицы с четкими колонками.")
+        showManualText("Добро пожаловать!", "Выберите нужный раздел мануала или откройте лог OpenDiag для просмотра в виде таблицы с колонками.")
     }
 
     private fun showManualText(heading: String, body: String) {
@@ -142,15 +142,53 @@ class MainActivity : Activity() {
         tableLayout.isStretchAllColumns = true
 
         try {
-            val lines = mutableListOf<String>()
             val inputStream = contentResolver.openInputStream(uri)
             if (inputStream != null) {
                 val reader = BufferedReader(InputStreamReader(inputStream))
                 var line = reader.readLine()
+                
+                // Определяем разделитель в файле лога (точка с запятой, запятая или табуляция)
+                var delimiter = ";"
+                if (line != null) {
+                    if (line.contains(",")) delimiter = ","
+                    else if (line.contains("\t")) delimiter = "\t"
+                    else if (line.contains(";")) delimiter = ";"
+
+                    // Первая строка — шапка таблицы (названия колонок датчиков)
+                    val headers = line.split(delimiter)
+                    val headerRow = TableRow(this)
+                    headerRow.setPadding(0, 8, 0, 8)
+                    for (h in headers) {
+                        val tv = TextView(this)
+                        tv.text = h.trim()
+                        tv.textSize = 13f
+                        tv.setTypeface(null, android.graphics.Typeface.BOLD)
+                        tv.setPadding(6, 6, 6, 6)
+                        tv.gravity = Gravity.CENTER
+                        headerRow.addView(tv)
+                    }
+                    tableLayout.addView(headerRow)
+                    totalRows++
+                }
+
+                // Последующие строки — значения параметров датчиков
+                line = reader.readLine()
                 while (line != null) {
                     val t = line.trim()
                     if (t.isNotEmpty()) {
-                        lines.add(t)
+                        val cols = t.split(delimiter)
+                        val row = TableRow(this)
+                        row.setPadding(0, 4, 0, 4)
+                        for (c in cols) {
+                            val tv = TextView(this)
+                            tv.text = c.trim()
+                            tv.textSize = 12f
+                            tv.setPadding(6, 4, 6, 4)
+                            tv.gravity = Gravity.CENTER
+                            row.addView(tv)
+                        }
+                        tableLayout.addView(row)
+                        totalRows++
                     }
                     line = reader.readLine()
                 }
@@ -158,90 +196,11 @@ class MainActivity : Activity() {
                 inputStream.close()
             }
 
-            // Создаем шапку таблицы с 3 колонками
-            addTableHeader(tableLayout, "Параметр", "Значение", "Статус / Ед.")
-
-            var i = 0
-            while (i < lines.size) {
-                val cur = lines[i]
-                
-                if (!cur.equals("Time", ignoreCase = true) && 
-                    !cur.equals("State", ignoreCase = true) && 
-                    !cur.equals("Connect", ignoreCase = true) &&
-                    !cur.all { it.isDigit() || it == '.' || it == ':' }) {
-                    
-                    var paramName = cur
-                    var paramVal = ""
-                    var paramUnit = ""
-
-                    if (cur.equals("Send", ignoreCase = true) || cur.equals("Receive", ignoreCase = true)) {
-                        if (i + 1 < lines.size) {
-                            paramVal = lines[i + 1]
-                            i++
-                        }
-                        paramName = if (cur.equals("Send", ignoreCase = true)) "📤 Запрос ЭБУ" else "📥 Ответ ЭБУ"
-                        paramUnit = "байт"
-                    } else if (cur.contains("=")) {
-                        val parts = cur.split("=", limit = 2)
-                        paramName = parts[0].trim()
-                        paramVal = parts[1].trim()
-                    } else if (cur.contains(":")) {
-                        val parts = cur.split(":", limit = 2)
-                        paramName = parts[0].trim()
-                        paramVal = parts[1].trim()
-                    } else {
-                        paramVal = "OK"
-                    }
-
-                    addTableRow(tableLayout, paramName, paramVal, paramUnit)
-                    totalRows++
-                }
-                i++
-            }
-
-            statusText.text = "Загружено строк: $totalRows"
+            statusText.text = "Лог открыт как в DiagView. Строк: $totalRows"
             contentContainer.addView(tableLayout)
 
         } catch (e: Exception) {
-            statusText.text = "Ошибка чтения: ${e.localizedMessage}"
+            statusText.text = "Ошибка чтения файла: ${e.localizedMessage}"
         }
-    }
-
-    private fun addTableHeader(table: TableLayout, col1: String, col2: String, col3: String) {
-        val row = TableRow(this)
-        row.setPadding(0, 8, 0, 8)
-
-        val tv1 = createCell(col1, true, Gravity.START)
-        val tv2 = createCell(col2, true, Gravity.CENTER)
-        val tv3 = createCell(col3, true, Gravity.END)
-
-        row.addView(tv1)
-        row.addView(tv2)
-        row.addView(tv3)
-        table.addView(row)
-    }
-
-    private fun addTableRow(table: TableLayout, col1: String, col2: String, col3: String) {
-        val row = TableRow(this)
-        row.setPadding(0, 6, 0, 6)
-
-        val tv1 = createCell(col1, false, Gravity.START)
-        val tv2 = createCell(col2, false, Gravity.CENTER)
-        val tv3 = createCell(col3, false, Gravity.END)
-
-        row.addView(tv1)
-        row.addView(tv2)
-        row.addView(tv3)
-        table.addView(row)
-    }
-
-    private fun createCell(text: String, isHeader: Boolean, gravity: Int): TextView {
-        val tv = TextView(this)
-        tv.text = text
-        tv.textSize = if (isHeader) 14f else 12f
-        tv.setTypeface(null, if (isHeader) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL)
-        tv.setPadding(4, 4, 4, 4)
-        tv.gravity = gravity
-        return tv
     }
 }
