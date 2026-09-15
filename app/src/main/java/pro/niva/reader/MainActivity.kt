@@ -28,7 +28,7 @@ class MainActivity : Activity() {
         mainLayout.setPadding(20, 20, 20, 20)
 
         val title = TextView(this)
-        title.text = "Niva Reader: Расшифровка логов ЭБУ"
+        title.text = "Niva Reader: Диагностика"
         title.textSize = 20f
         title.setPadding(0, 0, 0, 12)
         mainLayout.addView(title)
@@ -77,7 +77,7 @@ class MainActivity : Activity() {
         menuLayout.addView(row1)
 
         val btnOpenLog = Button(this)
-        btnOpenLog.text = "📁 Выбрать лог-файл ЭБУ (.log / .txt)"
+        btnOpenLog.text = "📁 Выбрать лог-файл (.log / .txt)"
         btnOpenLog.layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
         btnOpenLog.setOnClickListener {
             val intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
@@ -89,7 +89,7 @@ class MainActivity : Activity() {
         mainLayout.addView(menuLayout)
 
         statusText = TextView(this)
-        statusText.text = "Выберите раздел выше или загрузите лог ЭБУ."
+        statusText.text = "Выберите раздел выше или загрузите лог-файл."
         statusText.textSize = 14f
         statusText.setPadding(0, 4, 0, 8)
         mainLayout.addView(statusText)
@@ -104,7 +104,7 @@ class MainActivity : Activity() {
 
         setContentView(mainLayout)
 
-        showManualText("Добро пожаловать!", "Выберите нужный раздел мануала или загрузите лог-файл ЭБУ для расшифровки датчиков.")
+        showManualText("Добро пожаловать!", "Выберите нужный раздел мануала или загрузите лог-файл для вывода в виде таблицы с четкими колонками.")
     }
 
     private fun showManualText(heading: String, body: String) {
@@ -158,90 +158,90 @@ class MainActivity : Activity() {
                 inputStream.close()
             }
 
-            addTableRow(tableLayout, "Датчик / Параметр", "Расшифрованное значение", true)
+            // Создаем шапку таблицы с 3 колонками
+            addTableHeader(tableLayout, "Параметр", "Значение", "Статус / Ед.")
 
             var i = 0
             while (i < lines.size) {
                 val cur = lines[i]
+                
+                if (!cur.equals("Time", ignoreCase = true) && 
+                    !cur.equals("State", ignoreCase = true) && 
+                    !cur.equals("Connect", ignoreCase = true) &&
+                    !cur.all { it.isDigit() || it == '.' || it == ':' }) {
+                    
+                    var paramName = cur
+                    var paramVal = ""
+                    var paramUnit = ""
 
-                // Если строка содержит байты ответа ЭБУ (начинается с Receive или содержит 62 ...)
-                if (cur.contains("Receive:", ignoreCase = true) || cur.startsWith("62 ")) {
-                    val decoded = decodeEcuResponse(cur)
-                    addTableRow(tableLayout, "📥 Ответ ЭБУ", decoded, false)
-                    totalRows++
-                } else if (cur.contains("Send:", ignoreCase = true)) {
-                    addTableRow(tableLayout, "📤 Запрос", cur, false)
-                    totalRows++
-                } else if (!cur.equals("Time", ignoreCase = true) && 
-                           !cur.equals("State", ignoreCase = true) && 
-                           !cur.equals("Connect", ignoreCase = true) &&
-                           !cur.all { it.isDigit() || it == '.' || it == ':' }) {
-                    // Обычные текстовые строки лога
-                    val parts = cur.split(":", limit = 2)
-                    if (parts.size == 2) {
-                        addTableRow(tableLayout, parts[0].trim(), parts[1].trim(), false)
+                    if (cur.equals("Send", ignoreCase = true) || cur.equals("Receive", ignoreCase = true)) {
+                        if (i + 1 < lines.size) {
+                            paramVal = lines[i + 1]
+                            i++
+                        }
+                        paramName = if (cur.equals("Send", ignoreCase = true)) "📤 Запрос ЭБУ" else "📥 Ответ ЭБУ"
+                        paramUnit = "байт"
+                    } else if (cur.contains("=")) {
+                        val parts = cur.split("=", limit = 2)
+                        paramName = parts[0].trim()
+                        paramVal = parts[1].trim()
+                    } else if (cur.contains(":")) {
+                        val parts = cur.split(":", limit = 2)
+                        paramName = parts[0].trim()
+                        paramVal = parts[1].trim()
                     } else {
-                        addTableRow(tableLayout, "Событие", cur, false)
+                        paramVal = "OK"
                     }
+
+                    addTableRow(tableLayout, paramName, paramVal, paramUnit)
                     totalRows++
                 }
                 i++
             }
 
-            statusText.text = "Расшифровано записей: $totalRows"
+            statusText.text = "Загружено строк: $totalRows"
             contentContainer.addView(tableLayout)
 
         } catch (e: Exception) {
-            statusText.text = "Ошибка расшифровки: ${e.localizedMessage}"
+            statusText.text = "Ошибка чтения: ${e.localizedMessage}"
         }
     }
 
-    // Интеллектуальный переводчик байтов ЭБУ в понятные величины
-    private fun decodeEcuResponse(line: String): String {
-        try {
-            // Очищаем строку от слова Receive, если оно там есть
-            val cleanLine = line.replace("Receive:", "", true).trim()
-            val bytes = cleanLine.split(Regex("\\s+"))
-
-            if (bytes.size >= 6) {
-                // Пытаемся перевести шестнадцатеричные байты в числа
-                val b3 = bytes.getOrNull(3)?.toIntOrNull(16) ?: 0
-                val b4 = bytes.getOrNull(4)?.toIntOrNull(16) ?: 0
-                val b5 = bytes.getOrNull(5)?.toIntOrNull(16) ?: 0
-
-                // Пример стандартных формул пересчета параметров ЭБУ (Январь / Bosch / OBD):
-                // Температура ОЖ обычно: байт - 40
-                // Обороты: (байт1 * 256 + байт2) / 4
-                val temp = b3 - 40
-                val rpm = ((b3 * 256) + b4) / 4
-
-                return "Сырые байты: [$cleanLine]\n➔ Обороты: ~$rpm об/мин | Температура ОЖ: ~$temp°C"
-            }
-            return cleanLine
-        } catch (e: Exception) {
-            return line
-        }
-    }
-
-    private fun addTableRow(table: TableLayout, col1: String, col2: String, isHeader: Boolean) {
+    private fun addTableHeader(table: TableLayout, col1: String, col2: String, col3: String) {
         val row = TableRow(this)
-        row.setPadding(0, 6, 0, 6)
+        row.setPadding(0, 8, 0, 8)
 
-        val tv1 = TextView(this)
-        tv1.text = col1
-        tv1.textSize = if (isHeader) 15f else 12f
-        tv1.setTypeface(null, if (isHeader) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL)
-        tv1.setPadding(6, 6, 6, 6)
-
-        val tv2 = TextView(this)
-        tv2.text = col2
-        tv2.textSize = if (isHeader) 15f else 12f
-        tv2.setTypeface(null, if (isHeader) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL)
-        tv2.setPadding(6, 6, 6, 6)
-        tv2.gravity = Gravity.END
+        val tv1 = createCell(col1, true, Gravity.START)
+        val tv2 = createCell(col2, true, Gravity.CENTER)
+        val tv3 = createCell(col3, true, Gravity.END)
 
         row.addView(tv1)
         row.addView(tv2)
+        row.addView(tv3)
         table.addView(row)
+    }
+
+    private fun addTableRow(table: TableLayout, col1: String, col2: String, col3: String) {
+        val row = TableRow(this)
+        row.setPadding(0, 6, 0, 6)
+
+        val tv1 = createCell(col1, false, Gravity.START)
+        val tv2 = createCell(col2, false, Gravity.CENTER)
+        val tv3 = createCell(col3, false, Gravity.END)
+
+        row.addView(tv1)
+        row.addView(tv2)
+        row.addView(tv3)
+        table.addView(row)
+    }
+
+    private fun createCell(text: String, isHeader: Boolean, gravity: Int): TextView {
+        val tv = TextView(this)
+        tv.text = text
+        tv.textSize = if (isHeader) 14f else 12f
+        tv.setTypeface(null, if (isHeader) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL)
+        tv.setPadding(4, 4, 4, 4)
+        tv.gravity = gravity
+        return tv
     }
 }
