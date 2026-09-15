@@ -23,61 +23,52 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        val mainLayout = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(20, 20, 20, 20)
-        }
+        val mainLayout = LinearLayout(this)
+        mainLayout.orientation = LinearLayout.VERTICAL
+        mainLayout.setPadding(20, 20, 20, 20)
 
-        val title = TextView(this).apply {
-            text = "Niva Reader: Руководство и Логи"
-            textSize = 20f
-            setPadding(0, 0, 0, 12)
-        }
+        val title = TextView(this)
+        title.text = "Niva Reader: Руководство и Логи"
+        title.textSize = 20f
+        title.setPadding(0, 0, 0, 12)
         mainLayout.addView(title)
 
-        // Меню кнопок (контейнер)
-        val menuLayout = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(0, 0, 0, 12)
+        val menuLayout = LinearLayout(this)
+        menuLayout.orientation = LinearLayout.VERTICAL
+        menuLayout.setPadding(0, 0, 0, 12)
+
+        val row1 = LinearLayout(this)
+        row1.orientation = LinearLayout.HORIZONTAL
+        row1.setPadding(0, 0, 0, 8)
+
+        val btnEngine = Button(this)
+        btnEngine.text = "Двигатель"
+        btnEngine.layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        btnEngine.setOnClickListener {
+            showManualText(
+                "Раздел: Двигатель и ЭБУ",
+                "• Диагностика и параметры датчиков\n• Проверка калибровки контроллера\n• Регламент замены расходников"
+            )
         }
 
-        // Ряд 1: Кнопки разделов мануала
-        val row1 = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            setPadding(0, 0, 0, 8)
+        val btnSuspension = Button(this)
+        btnSuspension.text = "Подвеска"
+        btnSuspension.layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        btnSuspension.setOnClickListener {
+            showManualText(
+                "Раздел: Подвеска и колеса",
+                "• Обслуживание ступичных узлов\n• Регулировка давления в шинах (для зимы рекомендуется 1.8 атм)\n• Проверка элементов подвески"
+            )
         }
 
-        val btnEngine = Button(this).apply {
-            text = "Двигатель"
-            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-            setOnClickListener {
-                showManualText(
-                    "Раздел: Двигатель и ЭБУ",
-                    "• Диагностика и параметры датчиков\n• Проверка калибровки контроллера\n• Регламент замены расходников"
-                )
-            }
-        }
-
-        val btnSuspension = Button(this).apply {
-            text = "Подвеска"
-            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-            setOnClickListener {
-                showManualText(
-                    "Раздел: Подвеска и колеса",
-                    "• Обслуживание ступичных узлов\n• Регулировка давления в шинах (для зимы рекомендуется 1.8 атм)\n• Проверка элементов подвески"
-                )
-            }
-        }
-
-        val btnAudio = Button(this).apply {
-            text = "Электрика"
-            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-            setOnClickListener {
-                showManualText(
-                    "Раздел: Электрика и аудио",
-                    "• Прокладка силовых линий и кабеля 1.5 мм²\n• Прямое подключение головного устройства к АКБ\n• Контроль предохранителей"
-                )
-            }
+        val btnAudio = Button(this)
+        btnAudio.text = "Электрика"
+        btnAudio.layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        btnAudio.setOnClickListener {
+            showManualText(
+                "Раздел: Электрика и аудио",
+                "• Прокладка силовых линий и кабеля 1.5 мм²\n• Прямое подключение головного устройства к АКБ\n• Контроль предохранителей"
+            )
         }
 
         row1.addView(btnEngine)
@@ -85,37 +76,27 @@ class MainActivity : Activity() {
         row1.addView(btnAudio)
         menuLayout.addView(row1)
 
-        // Ряд 2: Кнопка выбора лог-файла с телефона (.log, .txt, .csv)
-        val btnOpenLog = Button(this).apply {
-            text = "📁 Выбрать лог-файл (.csv / .txt / .log)"
-            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
-            setOnClickListener {
-                val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-                    addCategory(Intent.CATEGORY_OPENABLE)
-                    type = "*/*"
-                }
-                startActivityForResult(intent, PICK_FILE_REQUEST)
-            }
+        val btnOpenLog = Button(this)
+        btnOpenLog.text = "📁 Выбрать лог-файл (.csv / .txt / .log)"
+        btnOpenLog.layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+        btnOpenLog.setOnClickListener {
+            val intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
+            intent.addCategory(Intent.CATEGORY_OPENABLE)
+            intent.type = "*/*"
+            startActivityForResult(intent, PICK_FILE_REQUEST)
         }
         menuLayout.addView(btnOpenLog)
         mainLayout.addView(menuLayout)
 
-        // Текст статуса
-        statusText = TextView(this).apply {
-            text = "Выберите раздел выше или загрузите лог-файл."
-            textSize = 14f
-            setPadding(0, 4, 0, 8)
-        }
+        statusText = TextView(this)
+        statusText.text = "Выберите раздел выше или загрузите лог-файл."
+        statusText.textSize = 14f
+        statusText.setPadding(0, 4, 0, 8)
         mainLayout.addView(statusText)
 
-        // Контейнер для вывода данных
-        contentContainer = LinearLayout(this).a
-
-
-pply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(0, 8, 0, 8)
-        }
+        contentContainer = LinearLayout(this)
+        contentContainer.orientation = LinearLayout.VERTICAL
+        contentContainer.setPadding(0, 8, 0, 8)
 
         val scrollView = ScrollView(this)
         scrollView.addView(contentContainer)
@@ -123,7 +104,6 @@ pply {
 
         setContentView(mainLayout)
 
-        // Экран по умолчанию
         showManualText("Добро пожаловать!", "Выберите нужный раздел мануала или загрузите лог-файл с памяти телефона для анализа датчиков.")
     }
 
@@ -131,16 +111,15 @@ pply {
         contentContainer.removeAllViews()
         statusText.text = heading
 
-        val tvHeading = TextView(this).apply {
-            text = heading
-            textSize = 18f
-            setTypeface(null, android.graphics.Typeface.BOLD)
-            setPadding(0, 0, 0, 12)
-        }
-        val tvBody = TextView(this).apply {
-            text = body
-            textSize = 15f
-        }
+        val tvHeading = TextView(this)
+        tvHeading.text = heading
+        tvHeading.textSize = 18f
+        tvHeading.setTypeface(null, android.graphics.Typeface.BOLD)
+        tvHeading.setPadding(0, 0, 0, 12)
+
+        val tvBody = TextView(this)
+        tvBody.text = body
+        tvBody.textSize = 15f
 
         contentContainer.addView(tvHeading)
         contentContainer.addView(tvBody)
@@ -149,8 +128,8 @@ pply {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == PICK_FILE_REQUEST && resultCode == Activity.RESULT_OK) {
-            data?.data?.let { uri ->
-                readAndParseLogFile(uri)
+            if (data != null && data.data != null) {
+                readAndParseLogFile(data.data!!)
             }
         }
     }
@@ -159,51 +138,52 @@ pply {
         contentContainer.removeAllViews()
         var totalRows = 0
 
-        val tableLayout = TableLayout(this).apply {
-            isStretchAllColumns = true
-        }
+        val tableLayout = TableLayout(this)
+        tableLayout.isStretchAllColumns = true
 
         try {
             val inputStream = contentResolver.openInputStream(uri)
-            val reader = BufferedReader(InputStreamReader(inputStream))
-            
-            addTableRow(tableLayout, "Параметр / Событие", "Значение / Статус", true)
+            if (inputStream != null) {
+                val reader = BufferedReader(InputStreamReader(inputStream))
+                
+                addTableRow(tableLayout, "Параметр / Событие", "Значение / Статус", true)
 
-            var line: String? = reader.readLine()
-            while (line != null) {
-                val trimmed = line.trim()
-                if (trimmed.isNotEmpty()) {
-                    when {
-                        trimmed.contains("=") -> {
-                            val parts = trimmed.split("=", limit = 2)
-                            addTableRow(tableLayout, parts[0].trim(), parts[1].trim(), false)
-                            totalRows++
-                        }
-                        trimmed.contains(":") && !trimmed.startsWith("[") -> {
-                            val parts = trimmed.split(":", limit = 2)
-                            addTableRow(tableLayout, parts[0].trim(), parts[1].trim(), false)
-                            totalRows++
-                        }
-                        trimmed.contains(",") || trimmed.contains(";") || trimmed.contains("\t") -> {
-                            val parts = trimmed.split(Regex("[,;\\t]"))
-                            if (parts.size >= 2) {
+                var line: String? = reader.readLine()
+                while (line != null) {
+                    val trimmed = line.trim()
+                    if (trimmed.isNotEmpty()) {
+                        when {
+                            trimmed.contains("=") -> {
+                                val parts = trimmed.split("=", limit = 2)
                                 addTableRow(tableLayout, parts[0].trim(), parts[1].trim(), false)
                                 totalRows++
-                            } else {
+                            }
+                            trimmed.contains(":") && !trimmed.startsWith("[") -> {
+                                val parts = trimmed.split(":", limit = 2)
+                                addTableRow(tableLayout, parts[0].trim(), parts[1].trim(), false)
+                                totalRows++
+                            }
+                            trimmed.contains(",") || trimmed.contains(";") || trimmed.contains("\t") -> {
+                                val parts = trimmed.split(Regex("[,;\\t]"))
+                                if (parts.size >= 2) {
+                                    addTableRow(tableLayout, parts[0].trim(), parts[1].trim(), false)
+                                    totalRows++
+                                } else {
+                                    addTableRow(tableLayout, trimmed, "", false)
+                                    totalRows++
+                                }
+                            }
+                            else -> {
                                 addTableRow(tableLayout, trimmed, "", false)
                                 totalRows++
                             }
                         }
-                        else -> {
-                            addTableRow(tableLayout, trimmed, "", false)
-                            totalRows++
-                        }
                     }
+                    line = reader.readLine()
                 }
-                line = reader.readLine()
+                reader.close()
+                inputStream.close()
             }
-            reader.close()
-            inputStream?.close()
 
             statusText.text = "Лог загружен. Обработано строк: $totalRows"
             contentContainer.addView(tableLayout)
@@ -214,26 +194,21 @@ pply {
     }
 
     private fun addTableRow(table: TableLayout, col1: String, col2: String, isHeader: Boolean) {
-        val row = TableRow(this).apply {
-            setPadding(0, 6, 0, 6)
-        }
+        val row = TableRow(this)
+        row.setPadding(0, 6, 0, 6)
 
-        val tv1 = TextView(this).apply {
-            text = col1
+        val tv1 = TextView(this)
+        tv1.text = col1
+        tv1.textSize = if (isHeader) 15f else 13f
+        tv1.setTypeface(null, if (isHeader) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL)
+        tv1.setPadding(6, 6, 6, 6)
 
-
-textSize = if (isHeader) 15f else 13f
-            setTypeface(null, if (isHeader) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL)
-            setPadding(6, 6, 6, 6)
-        }
-
-        val tv2 = TextView(this).apply {
-            text = col2
-            textSize = if (isHeader) 15f else 13f
-            setTypeface(null, if (isHeader) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL)
-            setPadding(6, 6, 6, 6)
-            gravity = Gravity.END
-        }
+        val tv2 = TextView(this)
+        tv2.text = col2
+        tv2.textSize = if (isHeader) 15f else 13f
+        tv2.setTypeface(null, if (isHeader) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL)
+        tv2.setPadding(6, 6, 6, 6)
+        tv2.gravity = Gravity.END
 
         row.addView(tv1)
         row.addView(tv2)
