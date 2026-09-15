@@ -27,7 +27,7 @@ class MainActivity : Activity() {
         mainLayout.setPadding(16, 16, 16, 16)
 
         val title = TextView(this)
-        title.text = "Niva Reader: OpenDiag Log Monitor"
+        title.text = "Niva Reader: OBD-II Smart Decoder"
         title.textSize = 18f
         title.setTextColor(Color.BLACK)
         title.setPadding(0, 0, 0, 8)
@@ -77,7 +77,7 @@ class MainActivity : Activity() {
         menuLayout.addView(row1)
 
         val btnOpenLog = Button(this)
-        btnOpenLog.text = "📁 Открыть сырой лог OpenDiag (.log / .txt)"
+        btnOpenLog.text = "📁 Открыть лог OpenDiag (.log / .txt)"
         btnOpenLog.layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
         btnOpenLog.setOnClickListener {
             val intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
@@ -112,7 +112,7 @@ class MainActivity : Activity() {
 
         setContentView(mainLayout)
 
-        showManualText("Добро пожаловать!", "Выберите нужный раздел мануала или откройте лог OpenDiag для анализа обмена с ЭБУ.")
+        showManualText("Добро пожаловать!", "Выберите нужный раздел мануала или откройте лог OpenDiag для расшифровки параметров.")
     }
 
     private fun showManualText(heading: String, body: String) {
@@ -159,12 +159,10 @@ class MainActivity : Activity() {
                 while (line != null) {
                     val text = line.trim()
                     if (text.isNotEmpty()) {
-                        // Распознаем блоки лога OpenDiag
                         if (text.startsWith("Time:")) {
                             currentTime = text.replace("Time:", "").trim()
                         } else if (text.startsWith("Send:") || text.startsWith("Receive:") || text.startsWith("AppVersion") || text.startsWith("ECU")) {
                             
-                            // Создаем красивую карточку для каждой записи обмена
                             val cardLayout = LinearLayout(this)
                             cardLayout.orientation = LinearLayout.VERTICAL
                             cardLayout.setPadding(12, 8, 12, 8)
@@ -190,14 +188,36 @@ class MainActivity : Activity() {
                             tvData.textSize = 13f
                             
                             if (text.startsWith("Send:")) {
-                                tvData.setTextColor(Color.parseColor("#0066CC")) // Синий для запросов
+                                tvData.setTextColor(Color.parseColor("#0066CC"))
                             } else if (text.startsWith("Receive:")) {
-                                tvData.setTextColor(Color.parseColor("#008800")) // Зеленый для ответов ЭБУ
+                                tvData.setTextColor(Color.parseColor("#008800"))
                             } else {
                                 tvData.setTextColor(Color.BLACK)
                             }
-                            
                             cardLayout.addView(tvData)
+
+                            // 1. Проверяем на текстовые данные (VIN, версии калибровок)
+                            val decodedText = tryDecodeHexToAscii(text)
+                            if (decodedText != null) {
+                                val tvDecoded = TextView(this)
+                                tvDecoded.text = "💡 Текст: $decodedText"
+                                tvDecoded.textSize = 12f
+                                tvDecoded.setTextColor(Color.parseColor("#990000"))
+                                tvDecoded.setTypeface(null, android.graphics.Typeface.BOLD)
+                                cardLayout.addView(tvDecoded)
+                            }
+
+                            // 2. Проверяем на стандартные OBD-II параметры по формулам
+                            val decodedPid = tryDecodeOBDPid(text)
+                            if (decodedPid != null) {
+                                val tvPid = TextView(this)
+                                tvPid.text = "📊 Параметр: $decodedPid"
+                                tvPid.textSize = 13f
+                                tvPid.setTextColor(Color.parseColor("#B22222")) // Насыщенный кирпичный для датчиков
+                                tvPid.setTypeface(null, android.graphics.Typeface.BOLD)
+                                cardLayout.addView(tvPid)
+                            }
+
                             contentContainer.addView(cardLayout)
                             totalEvents++
                         }
@@ -208,10 +228,75 @@ class MainActivity : Activity() {
                 inputStream.close()
             }
 
-            statusText.text = "Лог успешно разобран. Записей: $totalEvents"
+            statusText.text = "Лог успешно расшифрован. Записей: $totalEvents"
 
         } catch (e: Exception) {
             statusText.text = "Ошибка чтения лога: ${e.localizedMessage}"
         }
+    }
+
+    // Декодер HEX в текст (ASCII)
+    private fun tryDecodeHexToAscii(line: String): String? {
+        if (!line.startsWith("Receive: 62")) return null
+        try {
+            val parts = line.replace("Receive:", "").trim().split(" ")
+            if (parts.size > 3) {
+                val sb = StringBuilder()
+                for (i in 3 until parts.size) {
+                    val hex = parts[i]
+                    if (hex.length == 2) {
+                        val charCode = hex.toInt(16)
+                        if (charCode in 32..126) {
+                            sb.append(charCode.toChar())
+                        }
+                    }
+                }
+                val result = sb.toString().trim()
+                if (result.length > 2) return result
+            }
+        } catch (e: Exception) {}
+        return null
+    }
+
+    // Декодер OBD-II параметров по формулам (PID 05, 0C, 11, 42 и т.д.)
+    private fun tryDecodeOBDPid(line: String): String? {
+        if (!line.startsWith("Receive:")) return null
+        try {
+            val clean = line.replace("Receive:", "").trim()
+            val parts = clean.split(" ")
+            // Ответ на стандартный запрос режима 01 начинается с 41
+            if (parts.size >= 3 && parts[0] == "41") {
+                val pid = parts[1]
+                when (pid) {
+                    "05" -> { // Температура охлаждающей жидкости
+                        val a = parts[2].toInt(16)
+                        val temp = a - 40
+                        return "Температура антифриза: $temp °C"
+                    }
+                    "0C" -> { // Обороты двигателя (RPM)
+                        if (parts.size >= 4) {
+                            val a = parts[2].toInt(16)
+                            val b = parts[3].toInt(16)
+                            val rpm = ((a * 256) + b) / 4
+                            return "Обороты двигателя: $rpm об/мин"
+                        }
+                    }
+                    "11" -> { // Положение дроссельной заслонки
+                        val a = parts[2].toInt(16)
+                        val throttle = (a * 100) / 255
+                        return "Положение дросселя: $throttle %"
+                    }
+                    "42" -> { // Напряжение ЭБУ / бортсети
+                        if (parts.size >= 4) {
+                            val a = parts[2].toInt(16)
+                            val b = parts[3].toInt(16)
+                            val voltage = ((a * 256) + b) / 1000.0
+                            return "Напряжение бортовой сети: $voltage В"
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {}
+        return null
     }
 }
