@@ -142,42 +142,15 @@ class MainActivity : Activity() {
         tableLayout.isStretchAllColumns = true
 
         try {
+            val lines = mutableListOf<String>()
             val inputStream = contentResolver.openInputStream(uri)
             if (inputStream != null) {
                 val reader = BufferedReader(InputStreamReader(inputStream))
-                
-                addTableRow(tableLayout, "Параметр / Событие", "Значение / Статус", true)
-
-                var line: String? = reader.readLine()
+                var line = reader.readLine()
                 while (line != null) {
-                    val trimmed = line.trim()
-                    if (trimmed.isNotEmpty()) {
-                        when {
-                            trimmed.contains("=") -> {
-                                val parts = trimmed.split("=", limit = 2)
-                                addTableRow(tableLayout, parts[0].trim(), parts[1].trim(), false)
-                                totalRows++
-                            }
-                            trimmed.contains(":") && !trimmed.startsWith("[") -> {
-                                val parts = trimmed.split(":", limit = 2)
-                                addTableRow(tableLayout, parts[0].trim(), parts[1].trim(), false)
-                                totalRows++
-                            }
-                            trimmed.contains(",") || trimmed.contains(";") || trimmed.contains("\t") -> {
-                                val parts = trimmed.split(Regex("[,;\\t]"))
-                                if (parts.size >= 2) {
-                                    addTableRow(tableLayout, parts[0].trim(), parts[1].trim(), false)
-                                    totalRows++
-                                } else {
-                                    addTableRow(tableLayout, trimmed, "", false)
-                                    totalRows++
-                                }
-                            }
-                            else -> {
-                                addTableRow(tableLayout, trimmed, "", false)
-                                totalRows++
-                            }
-                        }
+                    val t = line.trim()
+                    if (t.isNotEmpty()) {
+                        lines.add(t)
                     }
                     line = reader.readLine()
                 }
@@ -185,7 +158,51 @@ class MainActivity : Activity() {
                 inputStream.close()
             }
 
-            statusText.text = "Лог загружен. Обработано строк: $totalRows"
+            addTableRow(tableLayout, "Пакет / Направление", "Данные / Байты ответа", true)
+
+            var i = 0
+            while (i < lines.size) {
+                val cur = lines[i]
+                if (cur.equals("Send", ignoreCase = true) || cur.equals("Receive", ignoreCase = true)) {
+                    var payload = ""
+                    if (i + 1 < lines.size) {
+                        val next = lines[i + 1]
+                        if (!next.equals("Send", ignoreCase = true) && 
+                            !next.equals("Receive", ignoreCase = true) && 
+                            !next.equals("Time", ignoreCase = true)) {
+                            payload = next
+                            i++
+                        }
+                    }
+                    addTableRow(tableLayout, "[$cur]", payload, false)
+                    totalRows++
+                } else if (cur.equals("Time", ignoreCase = true)) {
+                    // Пропускаем метки времени, чтобы лог был чистым и компактным
+                    if (i + 1 < lines.size) {
+                        i++
+                    }
+                } else {
+                    when {
+                        cur.contains("=") -> {
+                            val parts = cur.split("=", limit = 2)
+                            addTableRow(tableLayout, parts[0].trim(), parts[1].trim(), false)
+                            totalRows++
+                        }
+                        cur.contains(":") && !cur.startsWith("[") -> {
+                            val parts = cur.split(":", limit = 2)
+                            addTableRow(tableLayout, parts[0].trim(), parts[1].trim(), false)
+                            totalRows++
+                        }
+                        else -> {
+                            addTableRow(tableLayout, cur, "", false)
+                            totalRows++
+                        }
+                    }
+                }
+                i++
+            }
+
+            statusText.text = "Лог расшифрован. Строк: $totalRows"
             contentContainer.addView(tableLayout)
 
         } catch (e: Exception) {
