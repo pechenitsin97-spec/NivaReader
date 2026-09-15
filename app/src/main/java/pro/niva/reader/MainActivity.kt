@@ -28,7 +28,7 @@ class MainActivity : Activity() {
         mainLayout.setPadding(20, 20, 20, 20)
 
         val title = TextView(this)
-        title.text = "Niva Reader: Руководство и Логи"
+        title.text = "Niva Reader: Расшифровка логов ЭБУ"
         title.textSize = 20f
         title.setPadding(0, 0, 0, 12)
         mainLayout.addView(title)
@@ -77,7 +77,7 @@ class MainActivity : Activity() {
         menuLayout.addView(row1)
 
         val btnOpenLog = Button(this)
-        btnOpenLog.text = "📁 Выбрать лог-файл (.csv / .txt / .log)"
+        btnOpenLog.text = "📁 Выбрать лог-файл ЭБУ (.log / .txt)"
         btnOpenLog.layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
         btnOpenLog.setOnClickListener {
             val intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
@@ -89,7 +89,7 @@ class MainActivity : Activity() {
         mainLayout.addView(menuLayout)
 
         statusText = TextView(this)
-        statusText.text = "Выберите раздел выше или загрузите лог-файл."
+        statusText.text = "Выберите раздел выше или загрузите лог ЭБУ."
         statusText.textSize = 14f
         statusText.setPadding(0, 4, 0, 8)
         mainLayout.addView(statusText)
@@ -104,7 +104,7 @@ class MainActivity : Activity() {
 
         setContentView(mainLayout)
 
-        showManualText("Добро пожаловать!", "Выберите нужный раздел мануала или загрузите лог-файл с памяти телефона для анализа датчиков.")
+        showManualText("Добро пожаловать!", "Выберите нужный раздел мануала или загрузите лог-файл ЭБУ для расшифровки датчиков.")
     }
 
     private fun showManualText(heading: String, body: String) {
@@ -158,53 +158,68 @@ class MainActivity : Activity() {
                 inputStream.close()
             }
 
-            addTableRow(tableLayout, "Тип пакета", "Байты / Данные ЭБУ", true)
+            addTableRow(tableLayout, "Датчик / Параметр", "Расшифрованное значение", true)
 
             var i = 0
-            var currentLabel = "Диагностика"
-
             while (i < lines.size) {
                 val cur = lines[i]
 
-                when {
-                    cur.equals("Send", ignoreCase = true) -> {
-                        currentLabel = "📤 Запрос (Send)"
-                        i++
+                // Если строка содержит байты ответа ЭБУ (начинается с Receive или содержит 62 ...)
+                if (cur.contains("Receive:", ignoreCase = true) || cur.startsWith("62 ")) {
+                    val decoded = decodeEcuResponse(cur)
+                    addTableRow(tableLayout, "📥 Ответ ЭБУ", decoded, false)
+                    totalRows++
+                } else if (cur.contains("Send:", ignoreCase = true)) {
+                    addTableRow(tableLayout, "📤 Запрос", cur, false)
+                    totalRows++
+                } else if (!cur.equals("Time", ignoreCase = true) && 
+                           !cur.equals("State", ignoreCase = true) && 
+                           !cur.equals("Connect", ignoreCase = true) &&
+                           !cur.all { it.isDigit() || it == '.' || it == ':' }) {
+                    // Обычные текстовые строки лога
+                    val parts = cur.split(":", limit = 2)
+                    if (parts.size == 2) {
+                        addTableRow(tableLayout, parts[0].trim(), parts[1].trim(), false)
+                    } else {
+                        addTableRow(tableLayout, "Событие", cur, false)
                     }
-                    cur.equals("Receive", ignoreCase = true) -> {
-                        currentLabel = "📥 Ответ (Receive)"
-                        i++
-                    }
-                    cur.equals("Time", ignoreCase = true) || 
-                    cur.equals("State", ignoreCase = true) || 
-                    cur.equals("Connect", ignoreCase = true) || 
-                    cur.equals("Android SDK", ignoreCase = true) || 
-                    cur.equals("Android device", ignoreCase = true) || 
-                    cur.equals("Device", ignoreCase = true) -> {
-                        // Пропускаем служебную строку и сопутствующий таймстамп
-                        if (i + 1 < lines.size) {
-                            val next = lines[i + 1]
-                            if (next.all { it.isDigit() || it == '.' || it == ':' } || next.length < 15) {
-                                i++
-                            }
-                        }
-                        i++
-                    }
-                    else -> {
-                        // Выводим строку, привязав к последнему маркеру Send/Receive
-                        addTableRow(tableLayout, currentLabel, cur, false)
-                        totalRows++
-                        currentLabel = "Данные"
-                        i++
-                    }
+                    totalRows++
                 }
+                i++
             }
 
-            statusText.text = "Лог расшифрован. Записей: $totalRows"
+            statusText.text = "Расшифровано записей: $totalRows"
             contentContainer.addView(tableLayout)
 
         } catch (e: Exception) {
-            statusText.text = "Ошибка чтения файла: ${e.localizedMessage}"
+            statusText.text = "Ошибка расшифровки: ${e.localizedMessage}"
+        }
+    }
+
+    // Интеллектуальный переводчик байтов ЭБУ в понятные величины
+    private fun decodeEcuResponse(line: String): String {
+        try {
+            // Очищаем строку от слова Receive, если оно там есть
+            val cleanLine = line.replace("Receive:", "", true).trim()
+            val bytes = cleanLine.split(Regex("\\s+"))
+
+            if (bytes.size >= 6) {
+                // Пытаемся перевести шестнадцатеричные байты в числа
+                val b3 = bytes.getOrNull(3)?.toIntOrNull(16) ?: 0
+                val b4 = bytes.getOrNull(4)?.toIntOrNull(16) ?: 0
+                val b5 = bytes.getOrNull(5)?.toIntOrNull(16) ?: 0
+
+                // Пример стандартных формул пересчета параметров ЭБУ (Январь / Bosch / OBD):
+                // Температура ОЖ обычно: байт - 40
+                // Обороты: (байт1 * 256 + байт2) / 4
+                val temp = b3 - 40
+                val rpm = ((b3 * 256) + b4) / 4
+
+                return "Сырые байты: [$cleanLine]\n➔ Обороты: ~$rpm об/мин | Температура ОЖ: ~$temp°C"
+            }
+            return cleanLine
+        } catch (e: Exception) {
+            return line
         }
     }
 
@@ -214,13 +229,13 @@ class MainActivity : Activity() {
 
         val tv1 = TextView(this)
         tv1.text = col1
-        tv1.textSize = if (isHeader) 15f else 13f
+        tv1.textSize = if (isHeader) 15f else 12f
         tv1.setTypeface(null, if (isHeader) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL)
         tv1.setPadding(6, 6, 6, 6)
 
         val tv2 = TextView(this)
         tv2.text = col2
-        tv2.textSize = if (isHeader) 15f else 13f
+        tv2.textSize = if (isHeader) 15f else 12f
         tv2.setTypeface(null, if (isHeader) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL)
         tv2.setPadding(6, 6, 6, 6)
         tv2.gravity = Gravity.END
