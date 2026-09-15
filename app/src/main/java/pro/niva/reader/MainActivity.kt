@@ -27,7 +27,7 @@ class MainActivity : Activity() {
         mainLayout.setPadding(16, 16, 16, 16)
 
         val title = TextView(this)
-        title.text = "Niva Reader: OBD-II Smart Decoder"
+        title.text = "Niva Reader: Ultimate OBD-II Decoder"
         title.textSize = 18f
         title.setTextColor(Color.BLACK)
         title.setPadding(0, 0, 0, 8)
@@ -112,7 +112,7 @@ class MainActivity : Activity() {
 
         setContentView(mainLayout)
 
-        showManualText("Добро пожаловать!", "Выберите нужный раздел мануала или откройте лог OpenDiag для расшифровки параметров.")
+        showManualText("Добро пожаловать!", "Выберите нужный раздел мануала или откройте лог OpenDiag для глубокого анализа.")
     }
 
     private fun showManualText(heading: String, body: String) {
@@ -196,7 +196,7 @@ class MainActivity : Activity() {
                             }
                             cardLayout.addView(tvData)
 
-                            // 1. Проверяем на текстовые данные (VIN, версии калибровок)
+                            // 1. Декодер текста
                             val decodedText = tryDecodeHexToAscii(text)
                             if (decodedText != null) {
                                 val tvDecoded = TextView(this)
@@ -207,13 +207,13 @@ class MainActivity : Activity() {
                                 cardLayout.addView(tvDecoded)
                             }
 
-                            // 2. Проверяем на стандартные OBD-II параметры по формулам
+                            // 2. Полный декодер параметров OBD-II (включая коррекции, давление, масло и т.д.)
                             val decodedPid = tryDecodeOBDPid(text)
                             if (decodedPid != null) {
                                 val tvPid = TextView(this)
-                                tvPid.text = "📊 Параметр: $decodedPid"
+                                tvPid.text = "📊 $decodedPid"
                                 tvPid.textSize = 13f
-                                tvPid.setTextColor(Color.parseColor("#B22222")) // Насыщенный кирпичный для датчиков
+                                tvPid.setTextColor(Color.parseColor("#B22222"))
                                 tvPid.setTypeface(null, android.graphics.Typeface.BOLD)
                                 cardLayout.addView(tvPid)
                             }
@@ -228,14 +228,13 @@ class MainActivity : Activity() {
                 inputStream.close()
             }
 
-            statusText.text = "Лог успешно расшифрован. Записей: $totalEvents"
+            statusText.text = "Лог полностью разобран. Записей: $totalEvents"
 
         } catch (e: Exception) {
             statusText.text = "Ошибка чтения лога: ${e.localizedMessage}"
         }
     }
 
-    // Декодер HEX в текст (ASCII)
     private fun tryDecodeHexToAscii(line: String): String? {
         if (!line.startsWith("Receive: 62")) return null
         try {
@@ -258,41 +257,100 @@ class MainActivity : Activity() {
         return null
     }
 
-    // Декодер OBD-II параметров по формулам (PID 05, 0C, 11, 42 и т.д.)
     private fun tryDecodeOBDPid(line: String): String? {
         if (!line.startsWith("Receive:")) return null
         try {
             val clean = line.replace("Receive:", "").trim()
             val parts = clean.split(" ")
-            // Ответ на стандартный запрос режима 01 начинается с 41
             if (parts.size >= 3 && parts[0] == "41") {
                 val pid = parts[1]
                 when (pid) {
-                    "05" -> { // Температура охлаждающей жидкости
+                    "03" -> return "Статус топливной системы: режим замкнут/разомкнут"
+                    "04" -> {
                         val a = parts[2].toInt(16)
-                        val temp = a - 40
-                        return "Температура антифриза: $temp °C"
+                        return "Нагрузка двигателя: ${(a * 100) / 255} %"
                     }
-                    "0C" -> { // Обороты двигателя (RPM)
+                    "05" -> {
+                        val a = parts[2].toInt(16)
+                        return "Температура антифриза: ${a - 40} °C"
+                    }
+                    "06" -> {
+                        val a = parts[2].toInt(16)
+                        val trim = String.format("%.1f", (a - 128) * 100.0 / 128.0)
+                        return "Краткосрочная топливная коррекция (Банк 1): $trim %"
+                    }
+                    "07" -> {
+                        val a = parts[2].toInt(16)
+                        val trim = String.format("%.1f", (a - 128) * 100.0 / 128.0)
+                        return "Долгосрочная топливная коррекция (Банк 1): $trim %"
+                    }
+                    "0A" -> {
+                        val a = parts[2].toInt(16)
+                        return "Давление топлива: ${a * 3} кПа"
+                    }
+                    "0B" -> {
+                        val a = parts[2].toInt(16)
+                        return "Давление во впускном коллекторе (ДАД): $a кПа"
+                    }
+                    "0C" -> {
                         if (parts.size >= 4) {
                             val a = parts[2].toInt(16)
                             val b = parts[3].toInt(16)
-                            val rpm = ((a * 256) + b) / 4
-                            return "Обороты двигателя: $rpm об/мин"
+                            return "Обороты двигателя: ${((a * 256) + b) / 4} об/мин"
                         }
                     }
-                    "11" -> { // Положение дроссельной заслонки
+                    "0D" -> {
                         val a = parts[2].toInt(16)
-                        val throttle = (a * 100) / 255
-                        return "Положение дросселя: $throttle %"
+                        return "Скорость автомобиля: $a км/ч"
                     }
-                    "42" -> { // Напряжение ЭБУ / бортсети
+                    "0E" -> {
+                        val a = parts[2].toInt(16)
+                        return "Угол опережения зажигания: ${(a - 128) / 2.0} °"
+                    }
+                    "0F" -> {
+                        val a = parts[2].toInt(16)
+                        return "Температура воздуха на впуске: ${a - 40} °C"
+                    }
+                    "10" -> {
                         if (parts.size >= 4) {
                             val a = parts[2].toInt(16)
                             val b = parts[3].toInt(16)
-                            val voltage = ((a * 256) + b) / 1000.0
-                            return "Напряжение бортовой сети: $voltage В"
+                            return "Массовый расход воздуха (ДМРВ): ${((a * 256) + b) / 100.0} г/с"
                         }
+                    }
+                    "11" -> {
+                        val a = parts[2].toInt(16)
+                        return "Положение дроссельной заслонки: ${(a * 100) / 255} %"
+                    }
+                    "1F" -> {
+                        if (parts.size >= 4) {
+                            val a = parts[2].toInt(16)
+                            val b = parts[3].toInt(16)
+                            return "Время с момента запуска двигателя: ${(a * 256) + b} сек"
+                        }
+                    }
+                    "2F" -> {
+                        val a = parts[2].toInt(16)
+                        return "Уровень топлива в баке: ${(a * 100) / 255} %"
+                    }
+                    "33" -> {
+                        val a = parts[2].toInt(16)
+                        return "Атмосферное давление: $a кПа"
+                    }
+                    "42" -> {
+                        if (parts.size >= 4) {
+                            val a = parts[2].toInt(16)
+                            val b = parts[3].toInt(16)
+                            return "Напряжение бортовой сети: ${((a * 256) + b) / 1000.0} В"
+                        }
+                    }
+                    "46" -> {
+                        val a = parts[2].toInt(16)
+                        return "Температура воздуха за бортом: ${a - 40} °C"
+                    }
+                    "5C" -> {
+                        val a = parts[2].toInt(16)
+                        return "Температура моторного масла: ${a - 40} °C"
                     }
                 }
             }
@@ -300,3 +358,4 @@ class MainActivity : Activity() {
         return null
     }
 }
+
