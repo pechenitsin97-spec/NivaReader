@@ -35,7 +35,7 @@ class MainActivity : Activity() {
         }
         mainLayout.addView(title)
 
-        // Меню кнопок
+        // Меню кнопок (контейнер)
         val menuLayout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(0, 0, 0, 12)
@@ -85,9 +85,9 @@ class MainActivity : Activity() {
         row1.addView(btnAudio)
         menuLayout.addView(row1)
 
-        // Ряд 2: Кнопка выбора лог-файла с телефона
+        // Ряд 2: Кнопка выбора лог-файла с телефона (.log, .txt, .csv)
         val btnOpenLog = Button(this).apply {
-            text = "📁 Выбрать лог-файл ЭБУ (.csv / .txt / .log)"
+            text = "📁 Выбрать лог-файл (.csv / .txt / .log)"
             layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
             setOnClickListener {
                 val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
@@ -100,7 +100,7 @@ class MainActivity : Activity() {
         menuLayout.addView(btnOpenLog)
         mainLayout.addView(menuLayout)
 
-        // Текст статуса / подсказки
+        // Текст статуса
         statusText = TextView(this).apply {
             text = "Выберите раздел выше или загрузите лог-файл."
             textSize = 14f
@@ -108,11 +108,11 @@ class MainActivity : Activity() {
         }
         mainLayout.addView(statusText)
 
-        // Контейнер для динамического контента (текст мануала или таблица логов)
-        contentCont
+        // Контейнер для вывода данных
+        contentContainer = LinearLayout(this).a
 
 
-ainer = LinearLayout(this).apply {
+pply {
             orientation = LinearLayout.VERTICAL
             setPadding(0, 8, 0, 8)
         }
@@ -123,8 +123,8 @@ ainer = LinearLayout(this).apply {
 
         setContentView(mainLayout)
 
-        // Приветственный экран по умолчанию
-        showManualText("Добро пожаловать!", "Выберите нужный раздел мануала в верхнем меню или откройте файл лога с памяти телефона для анализа датчиков.")
+        // Экран по умолчанию
+        showManualText("Добро пожаловать!", "Выберите нужный раздел мануала или загрузите лог-файл с памяти телефона для анализа датчиков.")
     }
 
     private fun showManualText(heading: String, body: String) {
@@ -167,7 +167,6 @@ ainer = LinearLayout(this).apply {
             val inputStream = contentResolver.openInputStream(uri)
             val reader = BufferedReader(InputStreamReader(inputStream))
             
-            // Шапка таблицы
             addTableRow(tableLayout, "Параметр / Событие", "Значение / Статус", true)
 
             var line: String? = reader.readLine()
@@ -216,15 +215,14 @@ ainer = LinearLayout(this).apply {
 
     private fun addTableRow(table: TableLayout, col1: String, col2: String, isHeader: Boolean) {
         val row = TableRow(this).apply {
-            setPadding(
-
-
-0, 6, 0, 6)
+            setPadding(0, 6, 0, 6)
         }
 
         val tv1 = TextView(this).apply {
             text = col1
-            textSize = if (isHeader) 15f else 13f
+
+
+textSize = if (isHeader) 15f else 13f
             setTypeface(null, if (isHeader) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL)
             setPadding(6, 6, 6, 6)
         }
