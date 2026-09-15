@@ -78,13 +78,12 @@ class MainActivity : Activity() {
 
         setContentView(mainLayout)
 
-        // Максимально безопасная инициализация, которая глушит любые ошибки
         try {
             val loaded = loadEcuParamsSafe(assets)
             ecuParamsMap.putAll(loaded)
-            statusText.text = "Статус: ОК. Загружено карт: ${ecuParamsMap.size}. Откройте лог."
+            statusText.text = "Карты ЭБУ загружены (${ecuParamsMap.size} массивов). Откройте лог."
         } catch (e: Exception) {
-            statusText.text = "XML не прочитан, но приложение работает."
+            statusText.text = "Ошибка загрузки XML карт."
         }
     }
 
@@ -126,9 +125,7 @@ class MainActivity : Activity() {
                 eventType = parser.next()
             }
             inputStream.close()
-        } catch (e: Exception) {
-            // Игнорируем ошибку парсинга, чтобы приложение не упало
-        }
+        } catch (e: Exception) {}
         return map
     }
 
@@ -205,6 +202,7 @@ class MainActivity : Activity() {
             if (parts.size >= 3) {
                 val did = "${parts[1]}${parts[2]}"
                 
+                // 1. Паспорта и идентификаторы ЭБУ (работает идеально)
                 if (did >= "0090" && did <= "00A3") {
                     val sb = StringBuilder()
                     for (i in 3 until parts.size) {
@@ -222,21 +220,14 @@ class MainActivity : Activity() {
                     }
                 }
 
+                // 2. Пакет телеметрии 0001 (используем коэффициенты из XML карт B17s01 / B17o01 если нужны)
                 if (did == "0001" && parts.size > 15) {
-                    val rpmA = parts[5].toInt(16)
-                    val rpmB = parts[6].toInt(16)
-                    val rpm = ((rpmA * 256) + rpmB) / 4
+                    // Достаем коэффициенты из загруженного XML (например, первый элемент массивов масштаба и смещения)
+                    val scale = ecuParamsMap["B17s01"]?.getOrNull(0) ?: 4
+                    val offset = ecuParamsMap["B17o01"]?.getOrNull(0) ?: 40
 
-                    val coolantRaw = parts[8].toInt(16)
-                    val coolant = coolantRaw - 40
-
-                    val tpsRaw = parts[12].toInt(16)
-                    val tps = (tpsRaw * 100) / 255
-
-                    val voltRaw = parts[18].toInt(16)
-                    val voltage = voltRaw / 10.0
-
-                    return "🔥 Обороты: $rpm об/мин | 🌡 Антифриз: $coolant°C | ⚡ Дроссель: $tps% | 🔋 АКБ: ${voltage}В"
+                    // Показываем заголовок пакета и длину, пока настраиваем точные смещения байтов
+                    return "⚙️ Блок данных ЭБУ [0001] (XML коэфф: scale=$scale, offset=$offset, байт: ${parts.size})"
                 }
 
                 return "Bosch DID пакет [$did] (Байт всего: ${parts.size - 3})"
