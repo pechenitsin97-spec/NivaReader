@@ -4,6 +4,7 @@
         android:label="Niva Reader"
         android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar">
         <activity
+            android:icon="@mipmap/ic_launcher"
             android:name=".MainActivity"
             android:exported="true">
             <intent-filter>
