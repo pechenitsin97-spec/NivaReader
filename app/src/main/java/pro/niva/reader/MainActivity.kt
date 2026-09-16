@@ -21,7 +21,6 @@ class MainActivity : Activity() {
     private lateinit var statusText: TextView
     private val PICK_FILE_REQUEST = 101
     
-    // Карта параметров (оставляем для совместимости и загрузки паспортов)
     private val ecuParamsMap: MutableMap<String, List<Int>> = mutableMapOf()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -154,18 +153,15 @@ class MainActivity : Activity() {
                 while (line != null) {
                     val text = line.trim()
                     
-                    // Обрабатываем только строки с данными от ЭБУ
                     if (text.isNotEmpty() && text.startsWith("Receive: 62")) {
                         
                         val decodedPid = tryDecodeBoschPacket(text)
                         
-                        // Если пакет успешно расшифрован
                         if (decodedPid != null) {
                             val cardLayout = LinearLayout(this)
                             cardLayout.orientation = LinearLayout.VERTICAL
                             cardLayout.setPadding(16, 12, 16, 12)
                             
-                            // Чередуем цвета карточек для красоты (зебра)
                             if (telemetryCount % 2 == 0) {
                                 cardLayout.setBackgroundColor(Color.parseColor("#F8F9FA"))
                             } else {
@@ -210,7 +206,6 @@ class MainActivity : Activity() {
             if (parts.size >= 3) {
                 val did = "${parts[1]}${parts[2]}"
                 
-                // 1. Паспорта ЭБУ 
                 if (did >= "0090" && did <= "00A3") {
                     val sb = StringBuilder()
                     for (i in 3 until parts.size) {
@@ -228,7 +223,6 @@ class MainActivity : Activity() {
                     }
                 }
 
-                // 2. Чистая телеметрия 0001 (ПЛЮС НАПРЯЖЕНИЕ АКБ И ПРОПУСКИ ЗАЖИГАНИЯ)
                 if (did == "0001" && parts.size > 50) {
                     try {
                         val tempRaw = parts[4].toIntOrNull(16) ?: 40
@@ -240,8 +234,13 @@ class MainActivity : Activity() {
 
                         val speed = parts[9].toIntOrNull(16) ?: 0
 
-                        val tpsRaw = parts[10].toIntOrNull(16) ?: 0
-                        val tps = (tpsRaw * 100) / 255
+                        // ИСПРАВЛЕНИЕ: Байт 10 - это УОЗ (зажигание), а не дроссель! Считаем отрицательные углы.
+                        val uozRaw = parts[10].toIntOrNull(16) ?: 0
+                        val uoz = if (uozRaw > 127) uozRaw - 256 else uozRaw
+
+                        // ИСТИННАЯ ПЕДАЛЬ ГАЗА - это Байт 22!
+                        val pedalRaw = parts[22].toIntOrNull(16) ?: 0
+                        val pedal = (pedalRaw * 100) / 255
 
                         val mafH = parts[13].toIntOrNull(16) ?: 0
                         val mafL = parts[14].toIntOrNull(16) ?: 0
@@ -250,15 +249,15 @@ class MainActivity : Activity() {
                         val voltRaw = parts[21].toIntOrNull(16) ?: 0
                         val voltage = voltRaw / 10.0
 
-                        // Счетчики пропусков воспламенения по цилиндрам (Байты 47, 48, 49, 50)
+                        // Счетчики пропусков по цилиндрам (Байты 47, 48, 49, 50)
                         val misfire1 = parts[47].toIntOrNull(16) ?: 0
                         val misfire2 = parts[48].toIntOrNull(16) ?: 0
                         val misfire3 = parts[49].toIntOrNull(16) ?: 0
                         val misfire4 = parts[50].toIntOrNull(16) ?: 0
 
                         return "🔥 Обороты: $rpm об/мин | 🌡 Антифриз: $coolant °C\n" +
-                               "🚗 Скорость: $speed км/ч | ⚡ Дроссель: $tps%\n" +
-                               "💨 Воздух (ДМРВ): $maf кг/ч | 🔋 АКБ: $voltage В\n" +
+                               "🚗 Скорость: $speed км/ч | ⚡ Педаль: $pedal% | ⏱ УОЗ: $uoz°\n" +
+                               "💨 Воздух (ДМРВ): $maf | 🔋 АКБ: $voltage В\n" +
                                "💥 Пропуски (Цил 1-2-3-4): [$misfire1] [$misfire2] [$misfire3] [$misfire4]"
                     } catch (e: Exception) {
                         return null
