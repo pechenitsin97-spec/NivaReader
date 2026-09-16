@@ -236,8 +236,11 @@ class MainActivity : Activity() {
                         val uozRaw = parts[10].toIntOrNull(16) ?: 0
                         val uoz = if (uozRaw > 127) uozRaw - 256 else uozRaw
 
-                        val pedalRaw = parts[22].toIntOrNull(16) ?: 0
-                        val pedal = (pedalRaw * 100) / 255
+                        // Время впрыска (Байты 11 и 12). Делим на 200, чтобы получить миллисекунды.
+                        val injH = parts[11].toIntOrNull(16) ?: 0
+                        val injL = parts[12].toIntOrNull(16) ?: 0
+                        val inj = ((injH * 256) + injL) / 200.0
+                        val injRounded = Math.round(inj * 100) / 100.0 // Округляем до сотых (например 3.85)
 
                         val mafH = parts[13].toIntOrNull(16) ?: 0
                         val mafL = parts[14].toIntOrNull(16) ?: 0
@@ -246,14 +249,14 @@ class MainActivity : Activity() {
                         val voltRaw = parts[21].toIntOrNull(16) ?: 0
                         val voltage = voltRaw / 10.0
 
-                        // Топливная коррекция (STFT) - Байт 25 (128 = идеальная смесь, 0%)
+                        val pedalRaw = parts[22].toIntOrNull(16) ?: 0
+                        val pedal = (pedalRaw * 100) / 255
+
                         val stftRaw = parts[25].toIntOrNull(16) ?: 128
                         val stftPercent = (stftRaw - 128) * 100.0 / 128.0
-                        // Безопасное округление до 1 знака после запятой без String.format (чтобы избежать крашей)
                         val stftRounded = Math.round(stftPercent * 10) / 10.0 
                         val sign = if (stftRounded > 0) "+" else ""
 
-                        // Сырой сигнал шума мотора по цилиндрам (0 - 255)
                         val noise1 = parts[47].toIntOrNull(16) ?: 0
                         val noise2 = parts[48].toIntOrNull(16) ?: 0
                         val noise3 = parts[49].toIntOrNull(16) ?: 0
@@ -261,8 +264,8 @@ class MainActivity : Activity() {
 
                         return "🔥 Обороты: $rpm об/мин | 🌡 Антифриз: $coolant °C\n" +
                                "🚗 Скорость: $speed км/ч | ⚡ Педаль: $pedal% | ⏱ УОЗ: $uoz°\n" +
-                               "💨 Воздух: $maf кг/ч | 🔋 АКБ: $voltage В | 💧 Корр.топлива: $sign$stftRounded%\n" +
-                               "📊 Шум мотора (Цил 1-4): [$noise1] [$noise2] [$noise3] [$noise4]"
+                               "💨 Воздух: $maf кг/ч | 💉 Впрыск: $injRounded мс | 💧 Корр: $sign$stftRounded%\n" +
+                               "🔋 АКБ: $voltage В | 📊 Шум (Цил 1-4): [$noise1] [$noise2] [$noise3] [$noise4]"
                     } catch (e: Exception) {
                         return null
                     }
