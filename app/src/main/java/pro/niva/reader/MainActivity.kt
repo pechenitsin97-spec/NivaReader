@@ -1,3 +1,201 @@
+package pro.niva.reader
+
+import android.app.Activity
+import android.content.Intent
+import android.content.res.AssetManager
+import android.graphics.Color
+import android.net.Uri
+import android.os.Bundle
+import android.widget.Button
+import android.widget.LinearLayout
+import android.widget.ScrollView
+import android.widget.TextView
+import org.xmlpull.v1.XmlPullParser
+import org.xmlpull.v1.XmlPullParserFactory
+import java.io.BufferedReader
+import java.io.InputStreamReader
+
+class MainActivity : Activity() {
+
+    private lateinit var contentContainer: LinearLayout
+    private lateinit var statusText: TextView
+    private val PICK_FILE_REQUEST = 101
+    
+    // Объявление карты параметров строго на уровне класса
+    private val ecuParamsMap: MutableMap<String, List<Int>> = mutableMapOf()
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        val mainLayout = LinearLayout(this)
+        mainLayout.orientation = LinearLayout.VERTICAL
+        mainLayout.setPadding(16, 16, 16, 16)
+
+        val title = TextView(this)
+        title.text = "Niva Reader: Smart ECU Decoder"
+        title.textSize = 18f
+        title.setTextColor(Color.BLACK)
+        title.setPadding(0, 0, 0, 8)
+        mainLayout.addView(title)
+
+        val menuLayout = LinearLayout(this)
+        menuLayout.orientation = LinearLayout.VERTICAL
+        menuLayout.setPadding(0, 0, 0, 8)
+
+        val btnOpenLog = Button(this)
+        btnOpenLog.text = "📁 Открыть лог OpenDiag (.log / .txt)"
+        btnOpenLog.layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, 
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+        btnOpenLog.setOnClickListener {
+            val intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
+            intent.addCategory(Intent.CATEGORY_OPENABLE)
+            intent.type = "*/*"
+            startActivityForResult(intent, PICK_FILE_REQUEST)
+        }
+        menuLayout.addView(btnOpenLog)
+        mainLayout.addView(menuLayout)
+
+        statusText = TextView(this)
+        statusText.textSize = 13f
+        statusText.setTextColor(Color.DKGRAY)
+        statusText.setPadding(0, 4, 0, 8)
+        mainLayout.addView(statusText)
+
+        contentContainer = LinearLayout(this)
+        contentContainer.orientation = LinearLayout.VERTICAL
+        contentContainer.layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+
+        val verticalScroll = ScrollView(this)
+        verticalScroll.layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.MATCH_PARENT
+        )
+        verticalScroll.addView(contentContainer)
+        mainLayout.addView(verticalScroll)
+
+        setContentView(mainLayout)
+
+        try {
+            val loaded = loadEcuParamsSafe(assets)
+            ecuParamsMap.putAll(loaded)
+            statusText.text = "Карты ЭБУ загружены (${ecuParamsMap.size}). Откройте лог."
+        } catch (e: Exception) {
+            statusText.text = "Готово. Откройте лог."
+        }
+    }
+
+    private fun loadEcuParamsSafe(assetManager: AssetManager): Map<String, List<Int>> {
+        val map = mutableMapOf<String, List<Int>>()
+        try {
+            val inputStream = assetManager.open("ecuParams.xml")
+            val factory = XmlPullParserFactory.newInstance()
+            val parser = factory.newPullParser()
+            parser.setInput(InputStreamReader(inputStream))
+
+            var eventType = parser.eventType
+            var currentParamName = ""
+
+            while (eventType != XmlPullParser.END_DOCUMENT) {
+                when (eventType) {
+                    XmlPullParser.START_TAG -> {
+                        if (parser.name == "params") {
+                            currentParamName = parser.getAttributeValue(null, "name") ?: ""
+                        }
+                    }
+                    XmlPullParser.TEXT -> {
+                        if (currentParamName.isNotEmpty()) {
+                            val text = parser.text?.trim()
+                            if (!text.isNullOrEmpty() && text.contains(",")) {
+                                val intList = text.split(",").mapNotNull { it.trim().toIntOrNull() }
+                                if (intList.isNotEmpty()) {
+                                    map[currentParamName] = intList
+                                }
+                            }
+                        }
+                    }
+                    XmlPullParser.END_TAG -> {
+                        if (parser.name == "params") {
+                            currentParamName = ""
+                        }
+                    }
+                }
+                eventType = parser.next()
+            }
+            inputStream.close()
+        } catch (e: Exception) {}
+        return map
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == PICK_FILE_REQUEST && resultCode == Activity.RESULT_OK) {
+            if (data != null && data.data != null) {
+                readAndParseLogFile(data.data!!)
+            }
+        }
+    }
+
+    private fun readAndParseLogFile(uri: Uri) {
+        contentContainer.removeAllViews()
+        var totalEvents = 0
+
+        try {
+            val inputStream = contentResolver.openInputStream(uri)
+            if (inputStream != null) {
+                val reader = BufferedReader(InputStreamReader(inputStream))
+                var line = reader.readLine()
+                
+                while (line != null) {
+                    val text = line.trim()
+                    if (text.isNotEmpty() && (text.startsWith("Send:") || text.startsWith("Receive:") || text.startsWith("ECU"))) {
+                        
+                        val cardLayout = LinearLayout(this)
+                        cardLayout.orientation = LinearLayout.VERTICAL
+                        cardLayout.setPadding(12, 8, 12, 8)
+                        cardLayout.setBackgroundColor(Color.parseColor("#F0F0F0"))
+                        
+                        val lp = LinearLayout.LayoutParams(
+                            LinearLayout.LayoutParams.MATCH_PARENT,
+                            LinearLayout.LayoutParams.WRAP_CONTENT
+                        )
+                        lp.setMargins(0, 4, 0, 4)
+                        cardLayout.layoutParams = lp
+
+                        val tvData = TextView(this)
+                        tvData.text = text
+                        tvData.textSize = 13f
+                        tvData.setTextColor(if (text.startsWith("Send:")) Color.parseColor("#0066CC") else Color.parseColor("#008800"))
+                        cardLayout.addView(tvData)
+
+                        val decodedPid = tryDecodeBoschPacket(text)
+                        if (decodedPid != null) {
+                            val tvPid = TextView(this)
+                            tvPid.text = "📊 $decodedPid"
+                            tvPid.textSize = 13f
+                            tvPid.setTextColor(Color.parseColor("#B22222"))
+                            tvPid.setTypeface(null, android.graphics.Typeface.BOLD)
+                            cardLayout.addView(tvPid)
+                        }
+
+                        contentContainer.addView(cardLayout)
+                        totalEvents++
+                    }
+                    line = reader.readLine()
+                }
+                reader.close()
+                inputStream.close()
+            }
+            statusText.text = "Лог разобран. Записей: $totalEvents"
+        } catch (e: Exception) {
+            statusText.text = "Ошибка чтения лога"
+        }
+    }
+
     private fun tryDecodeBoschPacket(line: String): String? {
         if (!line.startsWith("Receive: 62")) return null
         try {
@@ -6,7 +204,7 @@
             if (parts.size >= 3) {
                 val did = "${parts[1]}${parts[2]}"
                 
-                // 1. Паспорта ЭБУ (VIN, софт и т.д.)
+                // 1. Паспорта ЭБУ
                 if (did >= "0090" && did <= "00A3") {
                     val sb = StringBuilder()
                     for (i in 3 until parts.size) {
@@ -24,31 +222,25 @@
                     }
                 }
 
-                // 2. Пакет телеметрии 0001 с использованием XML-карт B17s* / B17o*
+                // 2. Пакет телеметрии 0001 с использованием XML-карт
                 if (did == "0001" && parts.size > 10) {
-                    val scales = ecuParamsMap["B17s01"] ?: listOf()
-                    val offsets = ecuParamsMap["B17o01"] ?: listOf()
+                    val scales: List<Int> = ecuParamsMap["B17s01"] ?: emptyList()
+                    val offsets: List<Int> = ecuParamsMap["B17o01"] ?: emptyList()
 
                     val sb = StringBuilder("📊 Телеметрия [0001]:\n")
-                    
-                    // Пробегаем по байтам полезной нагрузки и применяем коэффициенты из XML
-                    // Индексы данных начинаются с 3-го элемента (последовательность байт)
                     var paramIndex = 1
+                    
                     for (i in 3 until parts.size) {
                         val rawHex = parts[i]
                         val rawValue = rawHex.toIntOrNull(16) ?: continue
                         
-                        // Берем масштаб и смещение из таблиц XML (если они там есть для этого индекса)
                         val scale = scales.getOrNull(i - 3) ?: 1
                         val offset = offsets.getOrNull(i - 3) ?: 0
-                        
-                        // Применяем заводскую формулу пересчета
                         val calculated = (rawValue * scale) + offset
                         
-                        sb.append("• П[$paramIndex] (hex:$rawHex) = $calculated (s:$scale, o:$offset)\n")
+                        sb.append("• П[$paramIndex] = $calculated (s:$scale, o:$offset)\n")
                         paramIndex++
                         
-                        // Ограничим вывод первыми 10-12 параметрами для наглядности, чтобы экран не забивать
                         if (paramIndex > 10) {
                             sb.append("... и еще ${parts.size - i - 1} байт")
                             break
@@ -60,3 +252,4 @@
         } catch (e: Exception) {}
         return null
     }
+}
