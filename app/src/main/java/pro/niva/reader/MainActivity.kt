@@ -154,7 +154,6 @@ class MainActivity : Activity() {
                     val text = line.trim()
                     
                     if (text.isNotEmpty() && text.startsWith("Receive: 62")) {
-                        
                         val decodedPid = tryDecodeBoschPacket(text)
                         
                         if (decodedPid != null) {
@@ -234,11 +233,9 @@ class MainActivity : Activity() {
 
                         val speed = parts[9].toIntOrNull(16) ?: 0
 
-                        // ИСПРАВЛЕНИЕ: Байт 10 - это УОЗ (зажигание), а не дроссель! Считаем отрицательные углы.
                         val uozRaw = parts[10].toIntOrNull(16) ?: 0
                         val uoz = if (uozRaw > 127) uozRaw - 256 else uozRaw
 
-                        // ИСТИННАЯ ПЕДАЛЬ ГАЗА - это Байт 22!
                         val pedalRaw = parts[22].toIntOrNull(16) ?: 0
                         val pedal = (pedalRaw * 100) / 255
 
@@ -249,16 +246,23 @@ class MainActivity : Activity() {
                         val voltRaw = parts[21].toIntOrNull(16) ?: 0
                         val voltage = voltRaw / 10.0
 
-                        // Счетчики пропусков по цилиндрам (Байты 47, 48, 49, 50)
-                        val misfire1 = parts[47].toIntOrNull(16) ?: 0
-                        val misfire2 = parts[48].toIntOrNull(16) ?: 0
-                        val misfire3 = parts[49].toIntOrNull(16) ?: 0
-                        val misfire4 = parts[50].toIntOrNull(16) ?: 0
+                        // ИСПРАВЛЕНИЕ: Отскок УОЗ по цилиндрам при детонации (считаем отрицательные углы)
+                        val k1Raw = parts[47].toIntOrNull(16) ?: 0
+                        val k1 = if (k1Raw > 127) k1Raw - 256 else k1Raw
+                        
+                        val k2Raw = parts[48].toIntOrNull(16) ?: 0
+                        val k2 = if (k2Raw > 127) k2Raw - 256 else k2Raw
+                        
+                        val k3Raw = parts[49].toIntOrNull(16) ?: 0
+                        val k3 = if (k3Raw > 127) k3Raw - 256 else k3Raw
+                        
+                        val k4Raw = parts[50].toIntOrNull(16) ?: 0
+                        val k4 = if (k4Raw > 127) k4Raw - 256 else k4Raw
 
                         return "🔥 Обороты: $rpm об/мин | 🌡 Антифриз: $coolant °C\n" +
                                "🚗 Скорость: $speed км/ч | ⚡ Педаль: $pedal% | ⏱ УОЗ: $uoz°\n" +
                                "💨 Воздух (ДМРВ): $maf | 🔋 АКБ: $voltage В\n" +
-                               "💥 Пропуски (Цил 1-2-3-4): [$misfire1] [$misfire2] [$misfire3] [$misfire4]"
+                               "🔔 Отскок детонации (Цил 1-4): [$k1°] [$k2°] [$k3°] [$k4°]"
                     } catch (e: Exception) {
                         return null
                     }
@@ -268,4 +272,3 @@ class MainActivity : Activity() {
         return null
     }
 }
-
