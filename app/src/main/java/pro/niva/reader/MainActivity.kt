@@ -246,23 +246,23 @@ class MainActivity : Activity() {
                         val voltRaw = parts[21].toIntOrNull(16) ?: 0
                         val voltage = voltRaw / 10.0
 
-                        // ИСПРАВЛЕНИЕ: Отскок УОЗ по цилиндрам при детонации (считаем отрицательные углы)
-                        val k1Raw = parts[47].toIntOrNull(16) ?: 0
-                        val k1 = if (k1Raw > 127) k1Raw - 256 else k1Raw
-                        
-                        val k2Raw = parts[48].toIntOrNull(16) ?: 0
-                        val k2 = if (k2Raw > 127) k2Raw - 256 else k2Raw
-                        
-                        val k3Raw = parts[49].toIntOrNull(16) ?: 0
-                        val k3 = if (k3Raw > 127) k3Raw - 256 else k3Raw
-                        
-                        val k4Raw = parts[50].toIntOrNull(16) ?: 0
-                        val k4 = if (k4Raw > 127) k4Raw - 256 else k4Raw
+                        // Топливная коррекция (STFT) - Байт 25 (128 = идеальная смесь, 0%)
+                        val stftRaw = parts[25].toIntOrNull(16) ?: 128
+                        val stftPercent = (stftRaw - 128) * 100.0 / 128.0
+                        // Безопасное округление до 1 знака после запятой без String.format (чтобы избежать крашей)
+                        val stftRounded = Math.round(stftPercent * 10) / 10.0 
+                        val sign = if (stftRounded > 0) "+" else ""
+
+                        // Сырой сигнал шума мотора по цилиндрам (0 - 255)
+                        val noise1 = parts[47].toIntOrNull(16) ?: 0
+                        val noise2 = parts[48].toIntOrNull(16) ?: 0
+                        val noise3 = parts[49].toIntOrNull(16) ?: 0
+                        val noise4 = parts[50].toIntOrNull(16) ?: 0
 
                         return "🔥 Обороты: $rpm об/мин | 🌡 Антифриз: $coolant °C\n" +
                                "🚗 Скорость: $speed км/ч | ⚡ Педаль: $pedal% | ⏱ УОЗ: $uoz°\n" +
-                               "💨 Воздух (ДМРВ): $maf | 🔋 АКБ: $voltage В\n" +
-                               "🔔 Отскок детонации (Цил 1-4): [$k1°] [$k2°] [$k3°] [$k4°]"
+                               "💨 Воздух: $maf кг/ч | 🔋 АКБ: $voltage В | 💧 Корр.топлива: $sign$stftRounded%\n" +
+                               "📊 Шум мотора (Цил 1-4): [$noise1] [$noise2] [$noise3] [$noise4]"
                     } catch (e: Exception) {
                         return null
                     }
@@ -272,3 +272,4 @@ class MainActivity : Activity() {
         return null
     }
 }
+
