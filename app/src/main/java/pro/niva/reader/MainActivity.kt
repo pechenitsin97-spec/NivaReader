@@ -21,6 +21,7 @@ class MainActivity : Activity() {
     private lateinit var statusText: TextView
     private val PICK_FILE_REQUEST = 101
     
+    // Карта параметров (оставляем для совместимости и загрузки паспортов)
     private val ecuParamsMap: MutableMap<String, List<Int>> = mutableMapOf()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -158,7 +159,7 @@ class MainActivity : Activity() {
                         
                         val decodedPid = tryDecodeBoschPacket(text)
                         
-                        // Если пакет успешно расшифрован (Паспорт или 0001)
+                        // Если пакет успешно расшифрован
                         if (decodedPid != null) {
                             val cardLayout = LinearLayout(this)
                             cardLayout.orientation = LinearLayout.VERTICAL
@@ -227,8 +228,8 @@ class MainActivity : Activity() {
                     }
                 }
 
-                // 2. Чистая телеметрия 0001 (ПЛЮС НАПРЯЖЕНИЕ АКБ)
-                if (did == "0001" && parts.size > 22) {
+                // 2. Чистая телеметрия 0001 (ПЛЮС НАПРЯЖЕНИЕ АКБ И ПРОПУСКИ ЗАЖИГАНИЯ)
+                if (did == "0001" && parts.size > 50) {
                     try {
                         val tempRaw = parts[4].toIntOrNull(16) ?: 40
                         val coolant = tempRaw - 40
@@ -249,9 +250,16 @@ class MainActivity : Activity() {
                         val voltRaw = parts[21].toIntOrNull(16) ?: 0
                         val voltage = voltRaw / 10.0
 
+                        // Счетчики пропусков воспламенения по цилиндрам (Байты 47, 48, 49, 50)
+                        val misfire1 = parts[47].toIntOrNull(16) ?: 0
+                        val misfire2 = parts[48].toIntOrNull(16) ?: 0
+                        val misfire3 = parts[49].toIntOrNull(16) ?: 0
+                        val misfire4 = parts[50].toIntOrNull(16) ?: 0
+
                         return "🔥 Обороты: $rpm об/мин | 🌡 Антифриз: $coolant °C\n" +
                                "🚗 Скорость: $speed км/ч | ⚡ Дроссель: $tps%\n" +
-                               "💨 Воздух (ДМРВ): $maf кг/ч | 🔋 АКБ: $voltage В"
+                               "💨 Воздух (ДМРВ): $maf кг/ч | 🔋 АКБ: $voltage В\n" +
+                               "💥 Пропуски (Цил 1-2-3-4): [$misfire1] [$misfire2] [$misfire3] [$misfire4]"
                     } catch (e: Exception) {
                         return null
                     }
