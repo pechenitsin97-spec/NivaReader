@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Intent
 import android.content.res.AssetManager
 import android.graphics.Color
+import android.graphics.Typeface
 import android.net.Uri
 import android.os.Bundle
 import android.widget.Button
@@ -26,7 +27,7 @@ class MainActivity : Activity() {
     private val CREATE_CSV_REQUEST = 102
     
     private val ecuParamsMap: MutableMap<String, List<Int>> = mutableMapOf()
-    private val csvLines = mutableListOf<String>() // Наше хранилище для Excel
+    private val csvLines = mutableListOf<String>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -60,14 +61,13 @@ class MainActivity : Activity() {
         }
         menuLayout.addView(btnOpenLog)
         
-        // Новая кнопка для CSV
         btnSaveCsv = Button(this)
         btnSaveCsv.text = "💾 Сохранить в .csv (Excel)"
         btnSaveCsv.layoutParams = LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT, 
             LinearLayout.LayoutParams.WRAP_CONTENT
         )
-        btnSaveCsv.isEnabled = false // Сначала нужно загрузить лог
+        btnSaveCsv.isEnabled = false 
         btnSaveCsv.setOnClickListener {
             val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
                 addCategory(Intent.CATEGORY_OPENABLE)
@@ -167,15 +167,47 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun addHeaderCardToUI(info: String) {
+        val cardLayout = LinearLayout(this)
+        cardLayout.orientation = LinearLayout.VERTICAL
+        cardLayout.setPadding(24, 24, 24, 24)
+        cardLayout.setBackgroundColor(Color.parseColor("#181A1B")) // Графитовый фон как на иконке
+        
+        val lp = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+        lp.setMargins(0, 0, 0, 16)
+        cardLayout.layoutParams = lp
+
+        val tvTitle = TextView(this)
+        tvTitle.text = "⚡ ДАННЫЕ АВТОМОБИЛЯ И ЭБУ"
+        tvTitle.textSize = 14f
+        tvTitle.setTypeface(null, Typeface.BOLD)
+        tvTitle.setTextColor(Color.parseColor("#00FFCC")) // Неоновый зеленый как на молнии
+        tvTitle.setPadding(0, 0, 0, 12)
+        cardLayout.addView(tvTitle)
+
+        val tvInfo = TextView(this)
+        tvInfo.text = info
+        tvInfo.textSize = 14f
+        tvInfo.setTextColor(Color.parseColor("#E9ECEF")) // Светло-серый текст
+        tvInfo.setLineSpacing(0f, 1.3f)
+        cardLayout.addView(tvInfo)
+
+        contentContainer.addView(cardLayout)
+    }
+
     private fun readAndParseLogFile(uri: Uri) {
         contentContainer.removeAllViews()
         csvLines.clear()
         
-        // Шапка таблицы Excel (используем точку с запятой)
-        csvLines.add("Обороты;Антифриз_C;Скорость_кмч;Педаль_%;УОЗ_град;Воздух_ДМРВ;Впрыск_мс;Коррекция_%;АКБ_В;Шум_Ц1;Шум_Ц2;Шум_Ц3;Шум_Ц4")
-        
         var totalEvents = 0
         var telemetryCount = 0
+        
+        var headerText = StringBuilder()
+        var isHeaderParsed = false
+        var isHeaderAdded = false
 
         try {
             val inputStream = contentResolver.openInputStream(uri)
@@ -185,8 +217,42 @@ class MainActivity : Activity() {
                 
                 while (line != null) {
                     val text = line.trim()
+                    if (text.isEmpty()) {
+                        line = reader.readLine()
+                        continue
+                    }
+
+                    // 1. Собираем шапку лога (всё, что до команд Time/Send/Receive)
+                    if (!isHeaderParsed) {
+                        if (text.startsWith("Time:") || text.startsWith("Send:") || text.startsWith("Receive:")) {
+                            isHeaderParsed = true
+                        } else {
+                            headerText.append(text).append("\n")
+                            line = reader.readLine()
+                            continue
+                        }
+                    }
+
+                    // 2. Инициализируем UI и CSV, как только шапка собрана
+                    if (isHeaderParsed && !isHeaderAdded) {
+                        val finalHeader = headerText.toString().trim()
+                        if (finalHeader.isNotEmpty()) {
+                            addHeaderCardToUI(finalHeader) // Выводим красивую карточку на экран
+                        }
+                        
+                        // Добавляем шапку в Excel файл
+                        csvLines.add("--- ИНФОРМАЦИЯ О ЛОГЕ ---")
+                        finalHeader.split("\n").forEach { 
+                            csvLines.add(it.replace(";", ",")) // Защита от случайных разделителей
+                        }
+                        csvLines.add("-------------------------")
+                        csvLines.add("Обороты;Антифриз_C;Скорость_кмч;Педаль_%;УОЗ_град;Воздух_ДМРВ;Впрыск_мс;Коррекция_%;АКБ_В;Шум_Ц1;Шум_Ц2;Шум_Ц3;Шум_Ц4")
+                        
+                        isHeaderAdded = true
+                    }
                     
-                    if (text.isNotEmpty() && text.startsWith("Receive: 62")) {
+                    // 3. Разбираем телеметрию
+                    if (text.startsWith("Receive: 62")) {
                         val decodedPid = tryDecodeBoschPacket(text)
                         
                         if (decodedPid != null) {
@@ -226,7 +292,7 @@ class MainActivity : Activity() {
             }
             
             if (telemetryCount > 0) {
-                btnSaveCsv.isEnabled = true // Включаем кнопку сохранения
+                btnSaveCsv.isEnabled = true
             }
             
             statusText.text = "Лог разобран. Строк: $totalEvents (Найдено пакетов: $telemetryCount)"
@@ -299,7 +365,6 @@ class MainActivity : Activity() {
                         val noise3 = parts[49].toIntOrNull(16) ?: 0
                         val noise4 = parts[50].toIntOrNull(16) ?: 0
                         
-                        // Добавляем строку в память для будущего файла Excel
                         val csvLine = "$rpm;$coolant;$speed;$pedal;$uoz;$maf;$injRounded;$stftRounded;$voltage;$noise1;$noise2;$noise3;$noise4"
                         csvLines.add(csvLine)
 
@@ -316,12 +381,10 @@ class MainActivity : Activity() {
         return null
     }
 
-    // Сохранение файла на устройство
     private fun saveCsvToFile(uri: Uri) {
         try {
             contentResolver.openOutputStream(uri)?.use { outputStream ->
                 OutputStreamWriter(outputStream, "UTF-8").use { writer ->
-                    // Добавляем BOM, чтобы Excel понял, что это UTF-8, и не ломал русские буквы
                     writer.write("\uFEFF") 
                     for (line in csvLines) {
                         writer.write(line + "\n")
