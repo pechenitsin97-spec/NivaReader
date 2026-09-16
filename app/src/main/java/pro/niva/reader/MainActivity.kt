@@ -21,7 +21,6 @@ class MainActivity : Activity() {
     private lateinit var statusText: TextView
     private val PICK_FILE_REQUEST = 101
     
-    // Карта параметров
     private val ecuParamsMap: MutableMap<String, List<Int>> = mutableMapOf()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -140,7 +139,7 @@ class MainActivity : Activity() {
         }
     }
 
-        private fun readAndParseLogFile(uri: Uri) {
+    private fun readAndParseLogFile(uri: Uri) {
         contentContainer.removeAllViews()
         var totalEvents = 0
         var telemetryCount = 0
@@ -153,15 +152,19 @@ class MainActivity : Activity() {
                 
                 while (line != null) {
                     val text = line.trim()
+                    
+                    // Обрабатываем только строки с данными от ЭБУ
                     if (text.isNotEmpty() && text.startsWith("Receive: 62")) {
                         
                         val decodedPid = tryDecodeBoschPacket(text)
+                        
+                        // Если пакет успешно расшифрован (Паспорт или 0001)
                         if (decodedPid != null) {
                             val cardLayout = LinearLayout(this)
                             cardLayout.orientation = LinearLayout.VERTICAL
                             cardLayout.setPadding(16, 12, 16, 12)
                             
-                            // Чередуем цвета карточек для красоты
+                            // Чередуем цвета карточек для красоты (зебра)
                             if (telemetryCount % 2 == 0) {
                                 cardLayout.setBackgroundColor(Color.parseColor("#F8F9FA"))
                             } else {
@@ -179,7 +182,7 @@ class MainActivity : Activity() {
                             tvPid.text = decodedPid
                             tvPid.textSize = 14f
                             tvPid.setTextColor(Color.parseColor("#212529"))
-                            tvPid.setLineSpacing(0f, 1.2f) // Делаем текст чуть просторнее
+                            tvPid.setLineSpacing(0f, 1.2f)
                             cardLayout.addView(tvPid)
 
                             contentContainer.addView(cardLayout)
@@ -192,7 +195,7 @@ class MainActivity : Activity() {
                 reader.close()
                 inputStream.close()
             }
-            statusText.text = "Лог разобран. Записей: $totalEvents (Найдено пакетов данных: $telemetryCount)"
+            statusText.text = "Лог разобран. Строк: $totalEvents (Найдено пакетов: $telemetryCount)"
         } catch (e: Exception) {
             statusText.text = "Ошибка чтения лога"
         }
@@ -224,8 +227,8 @@ class MainActivity : Activity() {
                     }
                 }
 
-                // 2. Чистая телеметрия 0001
-                if (did == "0001" && parts.size > 22) { // Увеличили проверку длины для вольтажа
+                // 2. Чистая телеметрия 0001 (ПЛЮС НАПРЯЖЕНИЕ АКБ)
+                if (did == "0001" && parts.size > 22) {
                     try {
                         val tempRaw = parts[4].toIntOrNull(16) ?: 40
                         val coolant = tempRaw - 40
@@ -243,7 +246,6 @@ class MainActivity : Activity() {
                         val mafL = parts[14].toIntOrNull(16) ?: 0
                         val maf = ((mafH * 256) + mafL) / 10.0
 
-                        // Добавили напряжение бортсети! (Байт 21)
                         val voltRaw = parts[21].toIntOrNull(16) ?: 0
                         val voltage = voltRaw / 10.0
 
@@ -258,39 +260,5 @@ class MainActivity : Activity() {
         } catch (e: Exception) {}
         return null
     }
-
-
-                // 2. Расшифрованная телеметрия 0001 (Формулы, выведенные вручную!)
-                if (did == "0001" && parts.size > 14) {
-                    try {
-                        // Температура (П[2] = parts[4])
-                        val tempRaw = parts[4].toIntOrNull(16) ?: 40
-                        val coolant = tempRaw - 40
-
-                        // Обороты (П[5], П[6] = parts[7], parts[8])
-                        val rpmH = parts[7].toIntOrNull(16) ?: 0
-                        val rpmL = parts[8].toIntOrNull(16) ?: 0
-                        val rpm = ((rpmH * 256) + rpmL) / 4
-
-                        // Скорость (П[7] = parts[9])
-                        val speed = parts[9].toIntOrNull(16) ?: 0
-
-                        // Дроссель (П[8] = parts[10])
-                        val tpsRaw = parts[10].toIntOrNull(16) ?: 0
-                        val tps = (tpsRaw * 100) / 255
-
-                        // Массовый расход воздуха (ДМРВ) (П[11], П[12] = parts[13], parts[14])
-                        val mafH = parts[13].toIntOrNull(16) ?: 0
-                        val mafL = parts[14].toIntOrNull(16) ?: 0
-                        val maf = ((mafH * 256) + mafL) / 10.0
-
-                        return "🔥 Обороты: $rpm об/мин | 🌡 Антифриз: $coolant °C\n🚗 Скорость: $speed км/ч | ⚡ Дроссель: $tps%\n💨 Воздух (ДМРВ): $maf кг/ч"
-                    } catch (e: Exception) {
-                        return null
-                    }
-                }
-            }
-        } catch (e: Exception) {}
-        return null
-    }
 }
+
