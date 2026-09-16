@@ -47,6 +47,7 @@ class MainActivity : Activity() {
         menuLayout.orientation = LinearLayout.VERTICAL
         menuLayout.setPadding(0, 0, 0, 8)
 
+        // Кнопка открытия файла
         val btnOpenLog = Button(this)
         btnOpenLog.text = "📁 Открыть лог OpenDiag (.log / .txt)"
         btnOpenLog.layoutParams = LinearLayout.LayoutParams(
@@ -61,12 +62,17 @@ class MainActivity : Activity() {
         }
         menuLayout.addView(btnOpenLog)
         
+        // Кнопка сохранения CSV с отступом сверху
         btnSaveCsv = Button(this)
         btnSaveCsv.text = "💾 Сохранить в .csv (Excel)"
-        btnSaveCsv.layoutParams = LinearLayout.LayoutParams(
+        
+        val saveParams = LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT, 
             LinearLayout.LayoutParams.WRAP_CONTENT
         )
+        saveParams.setMargins(0, 16, 0, 0) // <-- Добавили отступ 16 пикселей между кнопками!
+        btnSaveCsv.layoutParams = saveParams
+        
         btnSaveCsv.isEnabled = false 
         btnSaveCsv.setOnClickListener {
             val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
@@ -171,7 +177,7 @@ class MainActivity : Activity() {
         val cardLayout = LinearLayout(this)
         cardLayout.orientation = LinearLayout.VERTICAL
         cardLayout.setPadding(24, 24, 24, 24)
-        cardLayout.setBackgroundColor(Color.parseColor("#181A1B")) // Графитовый фон как на иконке
+        cardLayout.setBackgroundColor(Color.parseColor("#181A1B"))
         
         val lp = LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
@@ -184,14 +190,14 @@ class MainActivity : Activity() {
         tvTitle.text = "⚡ ДАННЫЕ АВТОМОБИЛЯ И ЭБУ"
         tvTitle.textSize = 14f
         tvTitle.setTypeface(null, Typeface.BOLD)
-        tvTitle.setTextColor(Color.parseColor("#00FFCC")) // Неоновый зеленый как на молнии
+        tvTitle.setTextColor(Color.parseColor("#00FFCC"))
         tvTitle.setPadding(0, 0, 0, 12)
         cardLayout.addView(tvTitle)
 
         val tvInfo = TextView(this)
         tvInfo.text = info
         tvInfo.textSize = 14f
-        tvInfo.setTextColor(Color.parseColor("#E9ECEF")) // Светло-серый текст
+        tvInfo.setTextColor(Color.parseColor("#E9ECEF"))
         tvInfo.setLineSpacing(0f, 1.3f)
         cardLayout.addView(tvInfo)
 
@@ -222,7 +228,6 @@ class MainActivity : Activity() {
                         continue
                     }
 
-                    // 1. Собираем шапку лога (всё, что до команд Time/Send/Receive)
                     if (!isHeaderParsed) {
                         if (text.startsWith("Time:") || text.startsWith("Send:") || text.startsWith("Receive:")) {
                             isHeaderParsed = true
@@ -233,17 +238,15 @@ class MainActivity : Activity() {
                         }
                     }
 
-                    // 2. Инициализируем UI и CSV, как только шапка собрана
                     if (isHeaderParsed && !isHeaderAdded) {
                         val finalHeader = headerText.toString().trim()
                         if (finalHeader.isNotEmpty()) {
-                            addHeaderCardToUI(finalHeader) // Выводим красивую карточку на экран
+                            addHeaderCardToUI(finalHeader)
                         }
                         
-                        // Добавляем шапку в Excel файл
                         csvLines.add("--- ИНФОРМАЦИЯ О ЛОГЕ ---")
                         finalHeader.split("\n").forEach { 
-                            csvLines.add(it.replace(";", ",")) // Защита от случайных разделителей
+                            csvLines.add(it.replace(";", ","))
                         }
                         csvLines.add("-------------------------")
                         csvLines.add("Обороты;Антифриз_C;Скорость_кмч;Педаль_%;УОЗ_град;Воздух_ДМРВ;Впрыск_мс;Коррекция_%;АКБ_В;Шум_Ц1;Шум_Ц2;Шум_Ц3;Шум_Ц4")
@@ -251,8 +254,7 @@ class MainActivity : Activity() {
                         isHeaderAdded = true
                     }
                     
-                    // 3. Разбираем телеметрию
-                    if (text.startsWith("Receive: 62")) {
+                    if (text.startsWith("Receive: 62") || text.startsWith("Receive: 61") || text.startsWith("Receive: 49")) {
                         val decodedPid = tryDecodeBoschPacket(text)
                         
                         if (decodedPid != null) {
@@ -260,10 +262,15 @@ class MainActivity : Activity() {
                             cardLayout.orientation = LinearLayout.VERTICAL
                             cardLayout.setPadding(16, 12, 16, 12)
                             
-                            if (telemetryCount % 2 == 0) {
-                                cardLayout.setBackgroundColor(Color.parseColor("#F8F9FA"))
+                            if (decodedPid.startsWith("📝")) {
+                                cardLayout.setBackgroundColor(Color.parseColor("#E6FFFA"))
                             } else {
-                                cardLayout.setBackgroundColor(Color.parseColor("#E9ECEF"))
+                                if (telemetryCount % 2 == 0) {
+                                    cardLayout.setBackgroundColor(Color.parseColor("#F8F9FA"))
+                                } else {
+                                    cardLayout.setBackgroundColor(Color.parseColor("#E9ECEF"))
+                                }
+                                telemetryCount++
                             }
                             
                             val lp = LinearLayout.LayoutParams(
@@ -281,7 +288,6 @@ class MainActivity : Activity() {
                             cardLayout.addView(tvPid)
 
                             contentContainer.addView(cardLayout)
-                            telemetryCount++
                         }
                     }
                     totalEvents++
@@ -302,31 +308,30 @@ class MainActivity : Activity() {
     }
 
     private fun tryDecodeBoschPacket(line: String): String? {
-        if (!line.startsWith("Receive: 62")) return null
         try {
             val clean = line.replace("Receive:", "").trim()
             val parts = clean.split(" ")
             if (parts.size >= 3) {
                 val did = "${parts[1]}${parts[2]}"
                 
-                if (did >= "0090" && did <= "00A3") {
+                if (did.startsWith("F1") || did.startsWith("90") || did.startsWith("009") || did.startsWith("00A") || did.startsWith("02")) {
                     val sb = StringBuilder()
                     for (i in 3 until parts.size) {
                         val hex = parts[i]
-                        if (hex.length == 2 && hex != "AA") {
+                        if (hex.length == 2 && hex != "AA" && hex != "00") {
                             val charCode = hex.toIntOrNull(16) ?: continue
-                            if (charCode in 32..126) {
+                            if (charCode in 32..126 || charCode in 1040..1103) {
                                 sb.append(charCode.toChar())
                             }
                         }
                     }
                     val textResult = sb.toString().trim()
-                    if (textResult.isNotEmpty()) {
-                        return "📝 Паспорт [$did]: $textResult"
+                    if (textResult.length >= 4 && textResult.matches(Regex(".*[A-Za-z0-9]{4,}.*"))) {
+                        return "📝 Паспорт ЭБУ: $textResult"
                     }
                 }
 
-                if (did == "0001" && parts.size > 50) {
+                if (did == "0001" && parts.size > 50 && line.startsWith("Receive: 62")) {
                     try {
                         val tempRaw = parts[4].toIntOrNull(16) ?: 40
                         val coolant = tempRaw - 40
