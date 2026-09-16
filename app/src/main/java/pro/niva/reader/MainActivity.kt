@@ -140,9 +140,10 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun readAndParseLogFile(uri: Uri) {
+        private fun readAndParseLogFile(uri: Uri) {
         contentContainer.removeAllViews()
         var totalEvents = 0
+        var telemetryCount = 0
 
         try {
             val inputStream = contentResolver.openInputStream(uri)
@@ -152,45 +153,46 @@ class MainActivity : Activity() {
                 
                 while (line != null) {
                     val text = line.trim()
-                    if (text.isNotEmpty() && (text.startsWith("Send:") || text.startsWith("Receive:") || text.startsWith("ECU"))) {
+                    if (text.isNotEmpty() && text.startsWith("Receive: 62")) {
                         
-                        val cardLayout = LinearLayout(this)
-                        cardLayout.orientation = LinearLayout.VERTICAL
-                        cardLayout.setPadding(12, 8, 12, 8)
-                        cardLayout.setBackgroundColor(Color.parseColor("#F0F0F0"))
-                        
-                        val lp = LinearLayout.LayoutParams(
-                            LinearLayout.LayoutParams.MATCH_PARENT,
-                            LinearLayout.LayoutParams.WRAP_CONTENT
-                        )
-                        lp.setMargins(0, 4, 0, 4)
-                        cardLayout.layoutParams = lp
-
-                        val tvData = TextView(this)
-                        tvData.text = text
-                        tvData.textSize = 13f
-                        tvData.setTextColor(if (text.startsWith("Send:")) Color.parseColor("#0066CC") else Color.parseColor("#008800"))
-                        cardLayout.addView(tvData)
-
                         val decodedPid = tryDecodeBoschPacket(text)
                         if (decodedPid != null) {
-                            val tvPid = TextView(this)
-                            tvPid.text = "📊 $decodedPid"
-                            tvPid.textSize = 13f
-                            tvPid.setTextColor(Color.parseColor("#B22222"))
-                            tvPid.setTypeface(null, android.graphics.Typeface.BOLD)
-                            cardLayout.addView(tvPid)
-                        }
+                            val cardLayout = LinearLayout(this)
+                            cardLayout.orientation = LinearLayout.VERTICAL
+                            cardLayout.setPadding(16, 12, 16, 12)
+                            
+                            // Чередуем цвета карточек для красоты
+                            if (telemetryCount % 2 == 0) {
+                                cardLayout.setBackgroundColor(Color.parseColor("#F8F9FA"))
+                            } else {
+                                cardLayout.setBackgroundColor(Color.parseColor("#E9ECEF"))
+                            }
+                            
+                            val lp = LinearLayout.LayoutParams(
+                                LinearLayout.LayoutParams.MATCH_PARENT,
+                                LinearLayout.LayoutParams.WRAP_CONTENT
+                            )
+                            lp.setMargins(0, 4, 0, 4)
+                            cardLayout.layoutParams = lp
 
-                        contentContainer.addView(cardLayout)
-                        totalEvents++
+                            val tvPid = TextView(this)
+                            tvPid.text = decodedPid
+                            tvPid.textSize = 14f
+                            tvPid.setTextColor(Color.parseColor("#212529"))
+                            tvPid.setLineSpacing(0f, 1.2f) // Делаем текст чуть просторнее
+                            cardLayout.addView(tvPid)
+
+                            contentContainer.addView(cardLayout)
+                            telemetryCount++
+                        }
                     }
+                    totalEvents++
                     line = reader.readLine()
                 }
                 reader.close()
                 inputStream.close()
             }
-            statusText.text = "Лог разобран. Записей: $totalEvents"
+            statusText.text = "Лог разобран. Записей: $totalEvents (Найдено пакетов данных: $telemetryCount)"
         } catch (e: Exception) {
             statusText.text = "Ошибка чтения лога"
         }
@@ -221,6 +223,42 @@ class MainActivity : Activity() {
                         return "📝 Паспорт [$did]: $textResult"
                     }
                 }
+
+                // 2. Чистая телеметрия 0001
+                if (did == "0001" && parts.size > 22) { // Увеличили проверку длины для вольтажа
+                    try {
+                        val tempRaw = parts[4].toIntOrNull(16) ?: 40
+                        val coolant = tempRaw - 40
+
+                        val rpmH = parts[7].toIntOrNull(16) ?: 0
+                        val rpmL = parts[8].toIntOrNull(16) ?: 0
+                        val rpm = ((rpmH * 256) + rpmL) / 4
+
+                        val speed = parts[9].toIntOrNull(16) ?: 0
+
+                        val tpsRaw = parts[10].toIntOrNull(16) ?: 0
+                        val tps = (tpsRaw * 100) / 255
+
+                        val mafH = parts[13].toIntOrNull(16) ?: 0
+                        val mafL = parts[14].toIntOrNull(16) ?: 0
+                        val maf = ((mafH * 256) + mafL) / 10.0
+
+                        // Добавили напряжение бортсети! (Байт 21)
+                        val voltRaw = parts[21].toIntOrNull(16) ?: 0
+                        val voltage = voltRaw / 10.0
+
+                        return "🔥 Обороты: $rpm об/мин | 🌡 Антифриз: $coolant °C\n" +
+                               "🚗 Скорость: $speed км/ч | ⚡ Дроссель: $tps%\n" +
+                               "💨 Воздух (ДМРВ): $maf кг/ч | 🔋 АКБ: $voltage В"
+                    } catch (e: Exception) {
+                        return null
+                    }
+                }
+            }
+        } catch (e: Exception) {}
+        return null
+    }
+
 
                 // 2. Расшифрованная телеметрия 0001 (Формулы, выведенные вручную!)
                 if (did == "0001" && parts.size > 14) {
