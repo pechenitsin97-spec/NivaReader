@@ -14,14 +14,19 @@ import org.xmlpull.v1.XmlPullParser
 import org.xmlpull.v1.XmlPullParserFactory
 import java.io.BufferedReader
 import java.io.InputStreamReader
+import java.io.OutputStreamWriter
 
 class MainActivity : Activity() {
 
     private lateinit var contentContainer: LinearLayout
     private lateinit var statusText: TextView
+    private lateinit var btnSaveCsv: Button
+    
     private val PICK_FILE_REQUEST = 101
+    private val CREATE_CSV_REQUEST = 102
     
     private val ecuParamsMap: MutableMap<String, List<Int>> = mutableMapOf()
+    private val csvLines = mutableListOf<String>() // Наше хранилище для Excel
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -54,6 +59,25 @@ class MainActivity : Activity() {
             startActivityForResult(intent, PICK_FILE_REQUEST)
         }
         menuLayout.addView(btnOpenLog)
+        
+        // Новая кнопка для CSV
+        btnSaveCsv = Button(this)
+        btnSaveCsv.text = "💾 Сохранить в .csv (Excel)"
+        btnSaveCsv.layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, 
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+        btnSaveCsv.isEnabled = false // Сначала нужно загрузить лог
+        btnSaveCsv.setOnClickListener {
+            val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                addCategory(Intent.CATEGORY_OPENABLE)
+                type = "text/csv"
+                putExtra(Intent.EXTRA_TITLE, "Niva_Telemetry.csv")
+            }
+            startActivityForResult(intent, CREATE_CSV_REQUEST)
+        }
+        menuLayout.addView(btnSaveCsv)
+
         mainLayout.addView(menuLayout)
 
         statusText = TextView(this)
@@ -136,11 +160,20 @@ class MainActivity : Activity() {
             if (data != null && data.data != null) {
                 readAndParseLogFile(data.data!!)
             }
+        } else if (requestCode == CREATE_CSV_REQUEST && resultCode == Activity.RESULT_OK) {
+            if (data != null && data.data != null) {
+                saveCsvToFile(data.data!!)
+            }
         }
     }
 
     private fun readAndParseLogFile(uri: Uri) {
         contentContainer.removeAllViews()
+        csvLines.clear()
+        
+        // Шапка таблицы Excel (используем точку с запятой)
+        csvLines.add("Обороты;Антифриз_C;Скорость_кмч;Педаль_%;УОЗ_град;Воздух_ДМРВ;Впрыск_мс;Коррекция_%;АКБ_В;Шум_Ц1;Шум_Ц2;Шум_Ц3;Шум_Ц4")
+        
         var totalEvents = 0
         var telemetryCount = 0
 
@@ -191,6 +224,11 @@ class MainActivity : Activity() {
                 reader.close()
                 inputStream.close()
             }
+            
+            if (telemetryCount > 0) {
+                btnSaveCsv.isEnabled = true // Включаем кнопку сохранения
+            }
+            
             statusText.text = "Лог разобран. Строк: $totalEvents (Найдено пакетов: $telemetryCount)"
         } catch (e: Exception) {
             statusText.text = "Ошибка чтения лога"
@@ -236,11 +274,10 @@ class MainActivity : Activity() {
                         val uozRaw = parts[10].toIntOrNull(16) ?: 0
                         val uoz = if (uozRaw > 127) uozRaw - 256 else uozRaw
 
-                        // Время впрыска (Байты 11 и 12). Делим на 200, чтобы получить миллисекунды.
                         val injH = parts[11].toIntOrNull(16) ?: 0
                         val injL = parts[12].toIntOrNull(16) ?: 0
                         val inj = ((injH * 256) + injL) / 200.0
-                        val injRounded = Math.round(inj * 100) / 100.0 // Округляем до сотых (например 3.85)
+                        val injRounded = Math.round(inj * 100) / 100.0
 
                         val mafH = parts[13].toIntOrNull(16) ?: 0
                         val mafL = parts[14].toIntOrNull(16) ?: 0
@@ -261,6 +298,10 @@ class MainActivity : Activity() {
                         val noise2 = parts[48].toIntOrNull(16) ?: 0
                         val noise3 = parts[49].toIntOrNull(16) ?: 0
                         val noise4 = parts[50].toIntOrNull(16) ?: 0
+                        
+                        // Добавляем строку в память для будущего файла Excel
+                        val csvLine = "$rpm;$coolant;$speed;$pedal;$uoz;$maf;$injRounded;$stftRounded;$voltage;$noise1;$noise2;$noise3;$noise4"
+                        csvLines.add(csvLine)
 
                         return "🔥 Обороты: $rpm об/мин | 🌡 Антифриз: $coolant °C\n" +
                                "🚗 Скорость: $speed км/ч | ⚡ Педаль: $pedal% | ⏱ УОЗ: $uoz°\n" +
@@ -273,6 +314,24 @@ class MainActivity : Activity() {
             }
         } catch (e: Exception) {}
         return null
+    }
+
+    // Сохранение файла на устройство
+    private fun saveCsvToFile(uri: Uri) {
+        try {
+            contentResolver.openOutputStream(uri)?.use { outputStream ->
+                OutputStreamWriter(outputStream, "UTF-8").use { writer ->
+                    // Добавляем BOM, чтобы Excel понял, что это UTF-8, и не ломал русские буквы
+                    writer.write("\uFEFF") 
+                    for (line in csvLines) {
+                        writer.write(line + "\n")
+                    }
+                }
+            }
+            statusText.text = "✅ Успешно сохранено! (Строк: ${csvLines.size})"
+        } catch (e: Exception) {
+            statusText.text = "❌ Ошибка при сохранении CSV файла"
+        }
     }
 }
 
