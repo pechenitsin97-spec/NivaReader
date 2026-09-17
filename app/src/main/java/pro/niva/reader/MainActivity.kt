@@ -16,6 +16,7 @@ import org.xmlpull.v1.XmlPullParserFactory
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.io.OutputStreamWriter
+import java.util.Locale
 
 class MainActivity : Activity() {
 
@@ -35,20 +36,24 @@ class MainActivity : Activity() {
         val mainLayout = LinearLayout(this)
         mainLayout.orientation = LinearLayout.VERTICAL
         mainLayout.setPadding(16, 16, 16, 16)
+        mainLayout.setBackgroundColor(Color.parseColor("#F0F2F5")) // Светло-серый фон приложения
 
         val title = TextView(this)
-        title.text = "Niva Reader: Smart ECU Decoder"
-        title.textSize = 18f
-        title.setTextColor(Color.BLACK)
-        title.setPadding(0, 0, 0, 8)
+        title.text = "Niva Reader: Pro Diagnostics"
+        title.textSize = 20f
+        title.setTypeface(null, Typeface.BOLD)
+        title.setTextColor(Color.parseColor("#1A1A1D"))
+        title.setPadding(0, 0, 0, 12)
         mainLayout.addView(title)
 
         val menuLayout = LinearLayout(this)
         menuLayout.orientation = LinearLayout.VERTICAL
-        menuLayout.setPadding(0, 0, 0, 8)
+        menuLayout.setPadding(0, 0, 0, 12)
 
         val btnOpenLog = Button(this)
-        btnOpenLog.text = "📁 Открыть лог OpenDiag (.log / .txt)"
+        btnOpenLog.text = "📁 ОТКРЫТЬ ЛОГ OPEN DIAG"
+        btnOpenLog.setBackgroundColor(Color.parseColor("#3B82F6"))
+        btnOpenLog.setTextColor(Color.WHITE)
         btnOpenLog.layoutParams = LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT, 
             LinearLayout.LayoutParams.WRAP_CONTENT
@@ -62,21 +67,22 @@ class MainActivity : Activity() {
         menuLayout.addView(btnOpenLog)
         
         btnSaveCsv = Button(this)
-        btnSaveCsv.text = "💾 Сохранить в .csv (Excel)"
+        btnSaveCsv.text = "💾 СОХРАНИТЬ .CSV ДЛЯ EXCEL"
+        btnSaveCsv.setBackgroundColor(Color.parseColor("#10B981"))
+        btnSaveCsv.setTextColor(Color.WHITE)
         
         val saveParams = LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT, 
             LinearLayout.LayoutParams.WRAP_CONTENT
         )
-        saveParams.setMargins(0, 16, 0, 0)
+        saveParams.setMargins(0, 12, 0, 0)
         btnSaveCsv.layoutParams = saveParams
-        
         btnSaveCsv.isEnabled = false 
         btnSaveCsv.setOnClickListener {
             val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
                 addCategory(Intent.CATEGORY_OPENABLE)
                 type = "text/csv"
-                putExtra(Intent.EXTRA_TITLE, "Niva_Telemetry.csv")
+                putExtra(Intent.EXTRA_TITLE, "Niva_Telemetry_Pro.csv")
             }
             startActivityForResult(intent, CREATE_CSV_REQUEST)
         }
@@ -86,8 +92,8 @@ class MainActivity : Activity() {
 
         statusText = TextView(this)
         statusText.textSize = 13f
-        statusText.setTextColor(Color.DKGRAY)
-        statusText.setPadding(0, 4, 0, 8)
+        statusText.setTextColor(Color.parseColor("#4B5563"))
+        statusText.setPadding(0, 4, 0, 12)
         mainLayout.addView(statusText)
 
         contentContainer = LinearLayout(this)
@@ -110,7 +116,7 @@ class MainActivity : Activity() {
         try {
             val loaded = loadEcuParamsSafe(assets)
             ecuParamsMap.putAll(loaded)
-            statusText.text = "Готово к работе. Откройте лог."
+            statusText.text = "Готово к работе. Ожидание лог-файла..."
         } catch (e: Exception) {
             statusText.text = "Готово. Откройте лог."
         }
@@ -155,34 +161,6 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun addHeaderCardToUI(info: String) {
-        val cardLayout = LinearLayout(this)
-        cardLayout.orientation = LinearLayout.VERTICAL
-        cardLayout.setPadding(24, 24, 24, 24)
-        cardLayout.setBackgroundColor(Color.parseColor("#181A1B"))
-        
-        val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
-        lp.setMargins(0, 0, 0, 16)
-        cardLayout.layoutParams = lp
-
-        val tvTitle = TextView(this)
-        tvTitle.text = "⚡ ДАННЫЕ АВТОМОБИЛЯ И ЭБУ"
-        tvTitle.textSize = 14f
-        tvTitle.setTypeface(null, Typeface.BOLD)
-        tvTitle.setTextColor(Color.parseColor("#00FFCC"))
-        tvTitle.setPadding(0, 0, 0, 12)
-        cardLayout.addView(tvTitle)
-
-        val tvInfo = TextView(this)
-        tvInfo.text = info
-        tvInfo.textSize = 14f
-        tvInfo.setTextColor(Color.parseColor("#E9ECEF"))
-        tvInfo.setLineSpacing(0f, 1.3f)
-        cardLayout.addView(tvInfo)
-
-        contentContainer.addView(cardLayout)
-    }
-
     private fun readAndParseLogFile(uri: Uri) {
         contentContainer.removeAllViews()
         csvLines.clear()
@@ -218,49 +196,51 @@ class MainActivity : Activity() {
 
                     if (isHeaderParsed && !isHeaderAdded) {
                         val finalHeader = headerText.toString().trim()
-                        if (finalHeader.isNotEmpty()) addHeaderCardToUI(finalHeader)
                         
+                        // Пишем заголовок в CSV
                         csvLines.add("--- ИНФОРМАЦИЯ О ЛОГЕ ---")
                         finalHeader.split("\n").forEach { csvLines.add(it.replace(";", ",")) }
                         csvLines.add("-------------------------")
-                        // Разделяем колонки для честного CSV
                         csvLines.add("Обороты;Антифриз_C;Скорость_кмч;Педаль_%;УОЗ_град;Воздух_ДМРВ;Впрыск_мс;Коррекция_%;АКБ_В;Баланс_Ц1;Баланс_Ц2;Баланс_Ц3;Баланс_Ц4;Пропуски_Ц1;Пропуски_Ц2;Пропуски_Ц3;Пропуски_Ц4")
                         isHeaderAdded = true
                     }
                     
                     if (text.startsWith("Receive: 62") || text.startsWith("Receive: 61") || text.startsWith("Receive: 49")) {
-                        val decodedBlock = tryDecodeBoschPacket(text)
+                        val uiCard = tryDecodeBoschPacket(text)
                         
-                        if (decodedBlock != null) {
+                        if (uiCard != null) {
                             val cardLayout = LinearLayout(this)
                             cardLayout.orientation = LinearLayout.VERTICAL
-                            cardLayout.setPadding(16, 12, 16, 12)
+                            cardLayout.setPadding(24, 20, 24, 20)
                             
-                            // Раскраска зависит от типа пакета
-                            if (decodedBlock.contains("ПАСПОРТ")) {
-                                cardLayout.setBackgroundColor(Color.parseColor("#E6FFFA"))
-                            } else if (decodedBlock.contains("❌")) {
-                                cardLayout.setBackgroundColor(Color.parseColor("#FFF0F0")) // Красный для пакетов 0002 с пропусками
-                            } else if (decodedBlock.contains("✅")) {
-                                cardLayout.setBackgroundColor(Color.parseColor("#F4FFF4")) // Зеленоватый для пакетов 0002 без пропусков
+                            // Раскраска карточек
+                            if (uiCard.contains("ТЕЛЕМЕТРИЯ")) {
+                                cardLayout.setBackgroundColor(Color.parseColor("#EBF5FF")) // Нежно-голубой для датчиков
+                            } else if (uiCard.contains("ВНИМАНИЕ")) {
+                                cardLayout.setBackgroundColor(Color.parseColor("#FEE2E2")) // Красный для пропусков
+                            } else if (uiCard.contains("ЧИСТО")) {
+                                cardLayout.setBackgroundColor(Color.parseColor("#ECFCCB")) // Светло-зеленый
                             } else {
-                                if (telemetryCount % 2 == 0) cardLayout.setBackgroundColor(Color.parseColor("#F8F9FA"))
-                                else cardLayout.setBackgroundColor(Color.parseColor("#E9ECEF"))
+                                cardLayout.setBackgroundColor(Color.WHITE)
                             }
-                            telemetryCount++
                             
-                            val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
-                            lp.setMargins(0, 4, 0, 4)
+                            val lp = LinearLayout.LayoutParams(
+                                LinearLayout.LayoutParams.MATCH_PARENT, 
+                                LinearLayout.LayoutParams.WRAP_CONTENT
+                            )
+                            lp.setMargins(0, 8, 0, 8)
                             cardLayout.layoutParams = lp
 
                             val tvPid = TextView(this)
-                            tvPid.text = decodedBlock
+                            tvPid.text = uiCard
                             tvPid.textSize = 14f
-                            tvPid.setTextColor(Color.parseColor("#212529"))
-                            tvPid.setLineSpacing(0f, 1.2f)
+                            tvPid.setTypeface(Typeface.MONOSPACE, Typeface.NORMAL)
+                            tvPid.setTextColor(Color.parseColor("#111827"))
+                            tvPid.setLineSpacing(0f, 1.3f)
                             cardLayout.addView(tvPid)
 
                             contentContainer.addView(cardLayout)
+                            telemetryCount++
                         }
                     }
                     totalEvents++
@@ -270,56 +250,42 @@ class MainActivity : Activity() {
                 inputStream.close()
             }
             if (telemetryCount > 0) btnSaveCsv.isEnabled = true
-            statusText.text = "Лог разобран. Строк: $totalEvents (Отрисовано пакетов: $telemetryCount)"
+            statusText.text = "✅ Лог разобран. Строк: $totalEvents (Отрисовано пакетов: $telemetryCount)"
         } catch (e: Exception) {
-            statusText.text = "Ошибка чтения лога"
+            statusText.text = "❌ Ошибка чтения лога"
         }
     }
 
     private fun tryDecodeBoschPacket(line: String): String? {
         try {
             val clean = line.replace("Receive:", "").trim()
-            val parts = clean.split("\\s+".toRegex()) // Защита от двойных пробелов в логах
+            val parts = clean.split("\\s+".toRegex()) 
             
             if (parts.size >= 3) {
                 val did = "${parts[1]}${parts[2]}"
                 
-                if (did.startsWith("F1") || did.startsWith("90") || did.startsWith("009") || did.startsWith("00A") || did.startsWith("02") && parts.size < 40) {
-                    val sb = StringBuilder()
-                    for (i in 3 until parts.size) {
-                        val hex = parts[i]
-                        if (hex.length == 2 && hex != "AA" && hex != "00") {
-                            val charCode = hex.toIntOrNull(16) ?: continue
-                            if (charCode in 32..126 || charCode in 1040..1103) sb.append(charCode.toChar())
-                        }
-                    }
-                    val textResult = sb.toString().trim()
-                    if (textResult.length >= 4 && textResult.matches(Regex(".*[A-Za-z0-9]{4,}.*"))) {
-                        return "📝 ПАСПОРТ ЭБУ: $textResult"
-                    }
-                }
-
-                // --- ПАКЕТ 0001: ТОЛЬКО ДАТЧИКИ ---
+                // --- ПАКЕТ 0001: ТОЛЬКО ДАТЧИКИ (Super Precision) ---
                 if (did == "0001" && parts.size > 50) {
                     val tempRaw = parts[4].toIntOrNull(16) ?: 40
                     val coolant = tempRaw - 40
+                    
                     val rpmH = parts[7].toIntOrNull(16) ?: 0
                     val rpmL = parts[8].toIntOrNull(16) ?: 0
-                    val rpm = ((rpmH * 256) + rpmL) / 4
+                    val rpm = ((rpmH * 256.0) + rpmL) / 4.0
+                    
                     val speedRaw = parts[9].toIntOrNull(16) ?: 0
-                    val speed = Math.round(speedRaw * 1.32).toInt()
+                    val speed = speedRaw * 1.32
+                    
                     val uozRaw = parts[10].toIntOrNull(16) ?: 0
                     val uoz = if (uozRaw > 127) uozRaw - 256 else uozRaw
+                    
                     val inj = (((parts[11].toIntOrNull(16) ?: 0) * 256) + (parts[12].toIntOrNull(16) ?: 0)) / 200.0
-                    val injRounded = Math.round(inj * 100) / 100.0
                     val maf = (((parts[13].toIntOrNull(16) ?: 0) * 256) + (parts[14].toIntOrNull(16) ?: 0)) / 10.0
                     val voltage = (parts[21].toIntOrNull(16) ?: 0) / 10.0
-                    val pedal = ((parts[22].toIntOrNull(16) ?: 0) * 100) / 255
+                    val pedal = ((parts[22].toIntOrNull(16) ?: 0) * 100.0) / 255.0
                     
                     val stftRaw = parts[25].toIntOrNull(16) ?: 128
-                    val stftPercent = (stftRaw - 128) * 100.0 / 128.0
-                    val stftRounded = Math.round(stftPercent * 10) / 10.0 
-                    val sign = if (stftRounded > 0) "+" else ""
+                    val stft = (stftRaw - 128) * 100.0 / 128.0
 
                     val bal1Raw = parts[47].toIntOrNull(16) ?: 0
                     val bal2Raw = parts[48].toIntOrNull(16) ?: 0
@@ -331,39 +297,47 @@ class MainActivity : Activity() {
                     val balance3 = if (bal3Raw > 127) bal3Raw - 256 else bal3Raw
                     val balance4 = if (bal4Raw > 127) bal4Raw - 256 else bal4Raw
 
-                    // Пишем честный CSV: датчики есть, пропусков (пусто) нет
-                    val csvLine = "$rpm;$coolant;$speed;$pedal;$uoz;$maf;$injRounded;$stftRounded;$voltage;$balance1;$balance2;$balance3;$balance4;;;;"
+                    // CSV (Локаль US гарантирует точку в десятичных дробях)
+                    val csvLine = String.format(Locale.US, "%.0f;%d;%.1f;%.1f;%d;%.1f;%.2f;%+.1f;%.1f;%d;%d;%d;%d;;;;",
+                        rpm, coolant, speed, pedal, uoz, maf, inj, stft, voltage, balance1, balance2, balance3, balance4)
                     csvLines.add(csvLine)
 
-                    return "🔥 Обороты: $rpm об/мин | 🌡 Антифриз: $coolant °C\n" +
-                           "🚗 Скорость: $speed км/ч | ⚡ Педаль: $pedal% | ⏱ УОЗ: $uoz°\n" +
-                           "💨 Воздух: $maf кг/ч | 💉 Впрыск: $injRounded мс | 💧 Корр: $sign$stftRounded%\n" +
-                           "🔋 АКБ: $voltage В | ⚖️ Баланс: [$balance1] [$balance2] [$balance3] [$balance4]"
+                    // Красивая UI карточка
+                    return "🔵 ТЕЛЕМЕТРИЯ [0001]\n" +
+                           "🔥 Обороты: ${String.format(Locale.US, "%.0f", rpm)} об/мин | 🌡 Темп: $coolant °C\n" +
+                           "🚗 Скорость: ${String.format(Locale.US, "%.1f", speed)} км/ч  | ⚡ Педаль: ${String.format(Locale.US, "%.1f", pedal)}%\n" +
+                           "💨 Воздух: ${String.format(Locale.US, "%.1f", maf)} кг/ч    | 💉 Впрыск: ${String.format(Locale.US, "%.2f", inj)} мс\n" +
+                           "💧 Коррекция: ${String.format(Locale.US, "%+.1f", stft)}%  | ⏱ УОЗ: $uoz°\n" +
+                           "🔋 АКБ: ${String.format(Locale.US, "%.1f", voltage)} В\n" +
+                           "⚖️ Баланс: [$balance1] [$balance2] [$balance3] [$balance4]"
                 }
 
-                // --- ПАКЕТ 0002: ТОЛЬКО ПРОПУСКИ (Скорость и АКБ сюда не тянем!) ---
+                // --- ПАКЕТ 0002: ТОЛЬКО ПРОПУСКИ ---
                 if (did == "0002" && parts.size > 42) {
                     val tempRaw = parts[4].toIntOrNull(16) ?: 40
                     val coolant = tempRaw - 40
                     val rpmH = parts[7].toIntOrNull(16) ?: 0
                     val rpmL = parts[8].toIntOrNull(16) ?: 0
-                    val rpm = ((rpmH * 256) + rpmL) / 4
+                    val rpm = ((rpmH * 256.0) + rpmL) / 4.0
 
                     val misfire1 = (parts[35].toIntOrNull(16) ?: 0) * 256 + (parts[36].toIntOrNull(16) ?: 0)
                     val misfire2 = (parts[37].toIntOrNull(16) ?: 0) * 256 + (parts[38].toIntOrNull(16) ?: 0)
                     val misfire3 = (parts[39].toIntOrNull(16) ?: 0) * 256 + (parts[40].toIntOrNull(16) ?: 0)
                     val misfire4 = (parts[41].toIntOrNull(16) ?: 0) * 256 + (parts[42].toIntOrNull(16) ?: 0)
 
-                    // В CSV пишем Обороты, Температуру и Пропуски. Остальное (скорость, АКБ и тд) оставляем пустым!
-                    val csvLine = "$rpm;$coolant;;;;;;;;;;;;$misfire1;$misfire2;$misfire3;$misfire4"
+                    // Пишем в CSV пустые ячейки для датчиков, чтобы не ломать графики
+                    val csvLine = String.format(Locale.US, "%.0f;%d;;;;;;;;;;;;%d;%d;%d;%d",
+                        rpm, coolant, misfire1, misfire2, misfire3, misfire4)
                     csvLines.add(csvLine)
 
                     if (misfire1 > 0 || misfire2 > 0 || misfire3 > 0 || misfire4 > 0) {
-                        return "❌ ПРОПУСКИ: Ц1=$misfire1 | Ц2=$misfire2 | Ц3=$misfire3 | Ц4=$misfire4\n" +
-                               "(Зафиксировано при: $rpm об/мин, $coolant °C)"
+                        return "🔴 ВНИМАНИЕ: ПРОПУСКИ ЗАЖИГАНИЯ!\n" +
+                               "🔥 Обороты: ${String.format(Locale.US, "%.0f", rpm)} об/мин | 🌡 Темп: $coolant °C\n" +
+                               "❌ Ц1: $misfire1 | Ц2: $misfire2 | Ц3: $misfire3 | Ц4: $misfire4"
                     } else {
-                        return "✅ Пропуски отсутствуют\n" +
-                               "(Обороты: $rpm об/мин, $coolant °C)"
+                        return "🟢 ДИАГНОСТИКА ПРОПУСКОВ (ЧИСТО)\n" +
+                               "🔥 Обороты: ${String.format(Locale.US, "%.0f", rpm)} об/мин | 🌡 Темп: $coolant °C\n" +
+                               "✅ Пропуски отсутствуют"
                     }
                 }
             }
@@ -375,7 +349,7 @@ class MainActivity : Activity() {
         try {
             contentResolver.openOutputStream(uri)?.use { outputStream ->
                 OutputStreamWriter(outputStream, "UTF-8").use { writer ->
-                    writer.write("\uFEFF") 
+                    writer.write("\uFEFF") // BOM для нормального отображения в Excel
                     for (line in csvLines) {
                         writer.write(line + "\n")
                     }
