@@ -29,7 +29,20 @@ class MainActivity : Activity() {
     private val ecuParamsMap: MutableMap<String, List<Int>> = mutableMapOf()
     private val csvLines = mutableListOf<String>()
 
-    // === ПАМЯТЬ ПРИЛОЖЕНИЯ ДЛЯ ПРОПУСКОВ ===
+    // === ПАМЯТЬ ПРИЛОЖЕНИЯ (Для склейки пакетов от OpenDiag) ===
+    private var lastRpm = 0
+    private var lastCoolant = 0
+    private var lastSpeed = 0
+    private var lastPedal = 0
+    private var lastUoz = 0
+    private var lastMaf = 0.0
+    private var lastInj = 0.0
+    private var lastStft = 0.0
+    private var lastVolt = 0.0
+    private var lastBal1 = 0
+    private var lastBal2 = 0
+    private var lastBal3 = 0
+    private var lastBal4 = 0
     private var lastMis1 = 0
     private var lastMis2 = 0
     private var lastMis3 = 0
@@ -212,7 +225,20 @@ class MainActivity : Activity() {
         contentContainer.removeAllViews()
         csvLines.clear()
         
-        // Сбрасываем память пропусков при открытии нового лога
+        // Сбрасываем память при открытии нового лога
+        lastRpm = 0
+        lastCoolant = 0
+        lastSpeed = 0
+        lastPedal = 0
+        lastUoz = 0
+        lastMaf = 0.0
+        lastInj = 0.0
+        lastStft = 0.0
+        lastVolt = 0.0
+        lastBal1 = 0
+        lastBal2 = 0
+        lastBal3 = 0
+        lastBal4 = 0
         lastMis1 = 0
         lastMis2 = 0
         lastMis3 = 0
@@ -267,22 +293,21 @@ class MainActivity : Activity() {
                     if (text.startsWith("Receive: 62") || text.startsWith("Receive: 61") || text.startsWith("Receive: 49")) {
                         val decodedPid = tryDecodeBoschPacket(text)
                         
-                        // Отрисовываем карточку только если функция вернула текст (для пакетов 02 она теперь возвращает null)
                         if (decodedPid != null) {
                             val cardLayout = LinearLayout(this)
                             cardLayout.orientation = LinearLayout.VERTICAL
                             cardLayout.setPadding(16, 12, 16, 12)
                             
-                            // Логика раскраски карточек
+                            // Новая логика раскраски: если в тексте карточки есть "❌", красим всю карточку
                             if (decodedPid.startsWith("📝")) {
-                                cardLayout.setBackgroundColor(Color.parseColor("#E6FFFA")) // Паспорт ЭБУ (мятный)
+                                cardLayout.setBackgroundColor(Color.parseColor("#E6FFFA"))
                             } else if (decodedPid.contains("❌")) {
-                                cardLayout.setBackgroundColor(Color.parseColor("#FFF0F0")) // Есть пропуски (красноватый)
+                                cardLayout.setBackgroundColor(Color.parseColor("#FFF0F0"))
                             } else {
                                 if (telemetryCount % 2 == 0) {
-                                    cardLayout.setBackgroundColor(Color.parseColor("#F8F9FA")) // Чередование (светло-серый)
+                                    cardLayout.setBackgroundColor(Color.parseColor("#F8F9FA"))
                                 } else {
-                                    cardLayout.setBackgroundColor(Color.parseColor("#E9ECEF")) // Чередование (чуть темнее)
+                                    cardLayout.setBackgroundColor(Color.parseColor("#E9ECEF"))
                                 }
                             }
                             telemetryCount++
@@ -329,7 +354,6 @@ class MainActivity : Activity() {
             if (parts.size >= 3) {
                 val did = "${parts[1]}${parts[2]}"
                 
-                // --- Разбор текстовых идентификаторов (Паспорт ЭБУ) ---
                 if (did.startsWith("F1") || did.startsWith("90") || did.startsWith("009") || did.startsWith("00A") || did.startsWith("02")) {
                     val sb = StringBuilder()
                     for (i in 3 until parts.size) {
@@ -348,88 +372,90 @@ class MainActivity : Activity() {
                 }
 
                 if (line.startsWith("Receive: 62")) {
+                    var isUpdated = false
                     
-                    // --- ПАКЕТ 01: БАЗОВЫЕ ПАРАМЕТРЫ + СКЛЕЙКА ---
+                    // --- ПАКЕТ 01: ОБНОВЛЯЕМ БАЗОВЫЕ ПАРАМЕТРЫ ---
                     if (did == "0001" && parts.size > 50) {
                         try {
                             val tempRaw = parts[4].toIntOrNull(16) ?: 40
-                            val coolant = tempRaw - 40
+                            lastCoolant = tempRaw - 40
 
                             val rpmH = parts[7].toIntOrNull(16) ?: 0
                             val rpmL = parts[8].toIntOrNull(16) ?: 0
-                            val rpm = ((rpmH * 256) + rpmL) / 4
+                            lastRpm = ((rpmH * 256) + rpmL) / 4
 
                             val speedRaw = parts[9].toIntOrNull(16) ?: 0
-                            val speed = Math.round(speedRaw * 1.32).toInt()
+                            lastSpeed = Math.round(speedRaw * 1.32).toInt()
 
                             val uozRaw = parts[10].toIntOrNull(16) ?: 0
-                            val uoz = if (uozRaw > 127) uozRaw - 256 else uozRaw
+                            lastUoz = if (uozRaw > 127) uozRaw - 256 else uozRaw
 
                             val injH = parts[11].toIntOrNull(16) ?: 0
                             val injL = parts[12].toIntOrNull(16) ?: 0
                             val inj = ((injH * 256) + injL) / 200.0
-                            val injRounded = Math.round(inj * 100) / 100.0
+                            lastInj = Math.round(inj * 100) / 100.0
 
                             val mafH = parts[13].toIntOrNull(16) ?: 0
                             val mafL = parts[14].toIntOrNull(16) ?: 0
-                            val maf = ((mafH * 256) + mafL) / 10.0
+                            lastMaf = ((mafH * 256) + mafL) / 10.0
 
                             val voltRaw = parts[21].toIntOrNull(16) ?: 0
-                            val voltage = voltRaw / 10.0
+                            lastVolt = voltRaw / 10.0
 
                             val pedalRaw = parts[22].toIntOrNull(16) ?: 0
-                            val pedal = (pedalRaw * 100) / 255
+                            lastPedal = (pedalRaw * 100) / 255
 
                             val stftRaw = parts[25].toIntOrNull(16) ?: 128
                             val stftPercent = (stftRaw - 128) * 100.0 / 128.0
-                            val stftRounded = Math.round(stftPercent * 10) / 10.0 
-                            val sign = if (stftRounded > 0) "+" else ""
+                            lastStft = Math.round(stftPercent * 10) / 10.0 
 
                             val bal1Raw = parts[47].toIntOrNull(16) ?: 0
                             val bal2Raw = parts[48].toIntOrNull(16) ?: 0
                             val bal3Raw = parts[49].toIntOrNull(16) ?: 0
                             val bal4Raw = parts[50].toIntOrNull(16) ?: 0
-                            val balance1 = if (bal1Raw > 127) bal1Raw - 256 else bal1Raw
-                            val balance2 = if (bal2Raw > 127) bal2Raw - 256 else bal2Raw
-                            val balance3 = if (bal3Raw > 127) bal3Raw - 256 else bal3Raw
-                            val balance4 = if (bal4Raw > 127) bal4Raw - 256 else bal4Raw
                             
-                            // Формируем общую строку CSV вместе с последними пропусками из памяти
-                            val csvLine = "$rpm;$coolant;$speed;$pedal;$uoz;$maf;$injRounded;$stftRounded;$voltage;$balance1;$balance2;$balance3;$balance4;$lastMis1;$lastMis2;$lastMis3;$lastMis4"
-                            csvLines.add(csvLine)
-
-                            // Формируем красивую строчку для UI
-                            val misfireText = if (lastMis1 > 0 || lastMis2 > 0 || lastMis3 > 0 || lastMis4 > 0) {
-                                "❌ Пропуски: Ц1=$lastMis1 | Ц2=$lastMis2 | Ц3=$lastMis3 | Ц4=$lastMis4"
-                            } else {
-                                "✅ Пропуски: Отсутствуют"
-                            }
-
-                            // Возвращаем единую карточку
-                            return "🔥 Обороты: $rpm об/мин | 🌡 Антифриз: $coolant °C\n" +
-                                   "🚗 Скорость: $speed км/ч | ⚡ Педаль: $pedal% | ⏱ УОЗ: $uoz°\n" +
-                                   "💨 Воздух: $maf кг/ч | 💉 Впрыск: $injRounded мс | 💧 Корр: $sign$stftRounded%\n" +
-                                   "🔋 АКБ: $voltage В | ⚖️ Баланс: [$balance1] [$balance2] [$balance3] [$balance4]\n" +
-                                   misfireText
+                            lastBal1 = if (bal1Raw > 127) bal1Raw - 256 else bal1Raw
+                            lastBal2 = if (bal2Raw > 127) bal2Raw - 256 else bal2Raw
+                            lastBal3 = if (bal3Raw > 127) bal3Raw - 256 else bal3Raw
+                            lastBal4 = if (bal4Raw > 127) bal4Raw - 256 else bal4Raw
+                            
+                            isUpdated = true
                         } catch (e: Exception) {
                             return null
                         }
                     }
                     
-                    // --- ПАКЕТ 02: ТОЛЬКО ЗАПОМИНАЕМ ПРОПУСКИ ---
+                    // --- ПАКЕТ 02: ОБНОВЛЯЕМ ТОЛЬКО ПРОПУСКИ ---
                     else if (did == "0002" && parts.size > 42) {
                         try {
-                            // Обновляем память приложения последними данными о пропусках
                             lastMis1 = (parts[35].toIntOrNull(16) ?: 0) * 256 + (parts[36].toIntOrNull(16) ?: 0)
                             lastMis2 = (parts[37].toIntOrNull(16) ?: 0) * 256 + (parts[38].toIntOrNull(16) ?: 0)
                             lastMis3 = (parts[39].toIntOrNull(16) ?: 0) * 256 + (parts[40].toIntOrNull(16) ?: 0)
                             lastMis4 = (parts[41].toIntOrNull(16) ?: 0) * 256 + (parts[42].toIntOrNull(16) ?: 0)
                             
-                            // ВОЗВРАЩАЕМ NULL, ЧТОБЫ КАРТОЧКА НЕ РИСОВАЛАСЬ ОТДЕЛЬНО
-                            return null
+                            isUpdated = true
                         } catch (e: Exception) {
                             return null
                         }
+                    }
+
+                    // --- СКЛЕЙКА ПАМЯТИ: Печатаем, если обновился ЛЮБОЙ из пакетов ---
+                    if (isUpdated) {
+                        val sign = if (lastStft > 0) "+" else ""
+                        val csvLine = "$lastRpm;$lastCoolant;$lastSpeed;$lastPedal;$lastUoz;$lastMaf;$lastInj;$lastStft;$lastVolt;$lastBal1;$lastBal2;$lastBal3;$lastBal4;$lastMis1;$lastMis2;$lastMis3;$lastMis4"
+                        csvLines.add(csvLine)
+
+                        val misfireText = if (lastMis1 > 0 || lastMis2 > 0 || lastMis3 > 0 || lastMis4 > 0) {
+                            "❌ Пропуски: Ц1=$lastMis1 | Ц2=$lastMis2 | Ц3=$lastMis3 | Ц4=$lastMis4"
+                        } else {
+                            "✅ Пропуски: Отсутствуют"
+                        }
+
+                        return "🔥 Обороты: $lastRpm об/мин | 🌡 Антифриз: $lastCoolant °C\n" +
+                               "🚗 Скорость: $lastSpeed км/ч | ⚡ Педаль: $lastPedal% | ⏱ УОЗ: $lastUoz°\n" +
+                               "💨 Воздух: $lastMaf кг/ч | 💉 Впрыск: $lastInj мс | 💧 Корр: $sign$lastStft%\n" +
+                               "🔋 АКБ: $lastVolt В | ⚖️ Баланс: [$lastBal1] [$lastBal2] [$lastBal3] [$lastBal4]\n" +
+                               misfireText
                     }
                 }
             }
