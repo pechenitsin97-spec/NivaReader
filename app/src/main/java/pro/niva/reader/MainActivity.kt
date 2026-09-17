@@ -197,7 +197,6 @@ class MainActivity : Activity() {
                     if (isHeaderParsed && !isHeaderAdded) {
                         val finalHeader = headerText.toString().trim()
                         
-                        // Пишем заголовок в CSV
                         csvLines.add("--- ИНФОРМАЦИЯ О ЛОГЕ ---")
                         finalHeader.split("\n").forEach { csvLines.add(it.replace(";", ",")) }
                         csvLines.add("-------------------------")
@@ -213,15 +212,20 @@ class MainActivity : Activity() {
                             cardLayout.orientation = LinearLayout.VERTICAL
                             cardLayout.setPadding(24, 20, 24, 20)
                             
-                            // Раскраска карточек
-                            if (uiCard.contains("ТЕЛЕМЕТРИЯ")) {
-                                cardLayout.setBackgroundColor(Color.parseColor("#EBF5FF")) // Нежно-голубой для датчиков
+                            // Умная раскраска карточек с "Зеброй" для телеметрии
+                            if (uiCard.contains("ПАСПОРТ")) {
+                                cardLayout.setBackgroundColor(Color.parseColor("#E6FFFA"))
                             } else if (uiCard.contains("ВНИМАНИЕ")) {
                                 cardLayout.setBackgroundColor(Color.parseColor("#FEE2E2")) // Красный для пропусков
                             } else if (uiCard.contains("ЧИСТО")) {
-                                cardLayout.setBackgroundColor(Color.parseColor("#ECFCCB")) // Светло-зеленый
+                                cardLayout.setBackgroundColor(Color.parseColor("#ECFCCB")) // Светло-зеленый для чистых пропусков
                             } else {
-                                cardLayout.setBackgroundColor(Color.WHITE)
+                                // Обычная телеметрия (0001) - делаем зебру
+                                if (telemetryCount % 2 == 0) {
+                                    cardLayout.setBackgroundColor(Color.parseColor("#EBF5FF")) // Нежно-голубой
+                                } else {
+                                    cardLayout.setBackgroundColor(Color.WHITE) // Белый
+                                }
                             }
                             
                             val lp = LinearLayout.LayoutParams(
@@ -264,7 +268,22 @@ class MainActivity : Activity() {
             if (parts.size >= 3) {
                 val did = "${parts[1]}${parts[2]}"
                 
-                // --- ПАКЕТ 0001: ТОЛЬКО ДАТЧИКИ (Super Precision) ---
+                if (did.startsWith("F1") || did.startsWith("90") || did.startsWith("009") || did.startsWith("00A") || did.startsWith("02") && parts.size < 40) {
+                    val sb = StringBuilder()
+                    for (i in 3 until parts.size) {
+                        val hex = parts[i]
+                        if (hex.length == 2 && hex != "AA" && hex != "00") {
+                            val charCode = hex.toIntOrNull(16) ?: continue
+                            if (charCode in 32..126 || charCode in 1040..1103) sb.append(charCode.toChar())
+                        }
+                    }
+                    val textResult = sb.toString().trim()
+                    if (textResult.length >= 4 && textResult.matches(Regex(".*[A-Za-z0-9]{4,}.*"))) {
+                        return "📝 ПАСПОРТ ЭБУ: $textResult"
+                    }
+                }
+
+                // --- ПАКЕТ 0001: ТОЛЬКО ДАТЧИКИ ---
                 if (did == "0001" && parts.size > 50) {
                     val tempRaw = parts[4].toIntOrNull(16) ?: 40
                     val coolant = tempRaw - 40
@@ -297,20 +316,17 @@ class MainActivity : Activity() {
                     val balance3 = if (bal3Raw > 127) bal3Raw - 256 else bal3Raw
                     val balance4 = if (bal4Raw > 127) bal4Raw - 256 else bal4Raw
 
-                    // CSV (Локаль US гарантирует точку в десятичных дробях)
                     val csvLine = String.format(Locale.US, "%.0f;%d;%.1f;%.1f;%d;%.1f;%.2f;%+.1f;%.1f;%d;%d;%d;%d;;;;",
                         rpm, coolant, speed, pedal, uoz, maf, inj, stft, voltage, balance1, balance2, balance3, balance4)
                     csvLines.add(csvLine)
 
-                                        // Красивая UI карточка
-                    return "🔵 ТЕЛЕМЕТРИЯ [0001]\n" +
-                           "🔥 Обороты: ${String.format(Locale.US, "%.0f", rpm)} об/мин | 🌡 Темп: $coolant °C\n" +
+                    // Красивая UI карточка без заголовка
+                    return "🔥 Обороты: ${String.format(Locale.US, "%.0f", rpm)} об/мин | 🌡 Темп: $coolant °C\n" +
                            "🚗 Скорость: ${String.format(Locale.US, "%.1f", speed)} км/ч | ⚡ Педаль: ${String.format(Locale.US, "%.1f", pedal)}%\n" +
                            "💨 Воздух: ${String.format(Locale.US, "%.1f", maf)} кг/ч | 💉 Впрыск: ${String.format(Locale.US, "%.2f", inj)} мс\n" +
                            "💧 Коррекция: ${String.format(Locale.US, "%+.1f", stft)}% | ⏱ УОЗ: $uoz°\n" +
                            "🔋 АКБ: ${String.format(Locale.US, "%.1f", voltage)} В\n" +
                            "⚖️ Баланс: [$balance1] [$balance2] [$balance3] [$balance4]"
-
                 }
 
                 // --- ПАКЕТ 0002: ТОЛЬКО ПРОПУСКИ ---
@@ -326,7 +342,6 @@ class MainActivity : Activity() {
                     val misfire3 = (parts[39].toIntOrNull(16) ?: 0) * 256 + (parts[40].toIntOrNull(16) ?: 0)
                     val misfire4 = (parts[41].toIntOrNull(16) ?: 0) * 256 + (parts[42].toIntOrNull(16) ?: 0)
 
-                    // Пишем в CSV пустые ячейки для датчиков, чтобы не ломать графики
                     val csvLine = String.format(Locale.US, "%.0f;%d;;;;;;;;;;;;%d;%d;%d;%d",
                         rpm, coolant, misfire1, misfire2, misfire3, misfire4)
                     csvLines.add(csvLine)
@@ -350,7 +365,7 @@ class MainActivity : Activity() {
         try {
             contentResolver.openOutputStream(uri)?.use { outputStream ->
                 OutputStreamWriter(outputStream, "UTF-8").use { writer ->
-                    writer.write("\uFEFF") // BOM для нормального отображения в Excel
+                    writer.write("\uFEFF") // BOM
                     for (line in csvLines) {
                         writer.write(line + "\n")
                     }
