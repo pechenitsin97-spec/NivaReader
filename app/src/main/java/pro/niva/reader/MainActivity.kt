@@ -29,6 +29,12 @@ class MainActivity : Activity() {
     private val ecuParamsMap: MutableMap<String, List<Int>> = mutableMapOf()
     private val csvLines = mutableListOf<String>()
 
+    // === ПАМЯТЬ ПРИЛОЖЕНИЯ ДЛЯ ПРОПУСКОВ ===
+    private var lastMis1 = 0
+    private var lastMis2 = 0
+    private var lastMis3 = 0
+    private var lastMis4 = 0
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -206,6 +212,12 @@ class MainActivity : Activity() {
         contentContainer.removeAllViews()
         csvLines.clear()
         
+        // Сбрасываем память пропусков при открытии нового лога
+        lastMis1 = 0
+        lastMis2 = 0
+        lastMis3 = 0
+        lastMis4 = 0
+        
         var totalEvents = 0
         var telemetryCount = 0
         
@@ -247,7 +259,6 @@ class MainActivity : Activity() {
                             csvLines.add(it.replace(";", ","))
                         }
                         csvLines.add("-------------------------")
-                        // Обновленная шапка CSV: добавлено 4 колонки пропусков в конец
                         csvLines.add("Обороты;Антифриз_C;Скорость_кмч;Педаль_%;УОЗ_град;Воздух_ДМРВ;Впрыск_мс;Коррекция_%;АКБ_В;Баланс_Ц1;Баланс_Ц2;Баланс_Ц3;Баланс_Ц4;Пропуски_Ц1;Пропуски_Ц2;Пропуски_Ц3;Пропуски_Ц4")
                         
                         isHeaderAdded = true
@@ -256,21 +267,22 @@ class MainActivity : Activity() {
                     if (text.startsWith("Receive: 62") || text.startsWith("Receive: 61") || text.startsWith("Receive: 49")) {
                         val decodedPid = tryDecodeBoschPacket(text)
                         
+                        // Отрисовываем карточку только если функция вернула текст (для пакетов 02 она теперь возвращает null)
                         if (decodedPid != null) {
                             val cardLayout = LinearLayout(this)
                             cardLayout.orientation = LinearLayout.VERTICAL
                             cardLayout.setPadding(16, 12, 16, 12)
                             
+                            // Логика раскраски карточек
                             if (decodedPid.startsWith("📝")) {
-                                cardLayout.setBackgroundColor(Color.parseColor("#E6FFFA"))
-                            } else if (decodedPid.startsWith("❌")) {
-                                // Выделяем карточки с пропусками красноватым оттенком
-                                cardLayout.setBackgroundColor(Color.parseColor("#FFF0F0"))
+                                cardLayout.setBackgroundColor(Color.parseColor("#E6FFFA")) // Паспорт ЭБУ (мятный)
+                            } else if (decodedPid.contains("❌")) {
+                                cardLayout.setBackgroundColor(Color.parseColor("#FFF0F0")) // Есть пропуски (красноватый)
                             } else {
                                 if (telemetryCount % 2 == 0) {
-                                    cardLayout.setBackgroundColor(Color.parseColor("#F8F9FA"))
+                                    cardLayout.setBackgroundColor(Color.parseColor("#F8F9FA")) // Чередование (светло-серый)
                                 } else {
-                                    cardLayout.setBackgroundColor(Color.parseColor("#E9ECEF"))
+                                    cardLayout.setBackgroundColor(Color.parseColor("#E9ECEF")) // Чередование (чуть темнее)
                                 }
                             }
                             telemetryCount++
@@ -303,7 +315,7 @@ class MainActivity : Activity() {
                 btnSaveCsv.isEnabled = true
             }
             
-            statusText.text = "Лог разобран. Строк: $totalEvents (Найдено пакетов: $telemetryCount)"
+            statusText.text = "Лог разобран. Строк: $totalEvents (Отрисовано пакетов: $telemetryCount)"
         } catch (e: Exception) {
             statusText.text = "Ошибка чтения лога"
         }
@@ -335,10 +347,9 @@ class MainActivity : Activity() {
                     }
                 }
 
-                // Убеждаемся, что перед нами нужный тип пакета
                 if (line.startsWith("Receive: 62")) {
                     
-                    // --- ПАКЕТ 01: БАЗОВЫЕ ПАРАМЕТРЫ ---
+                    // --- ПАКЕТ 01: БАЗОВЫЕ ПАРАМЕТРЫ + СКЛЕЙКА ---
                     if (did == "0001" && parts.size > 50) {
                         try {
                             val tempRaw = parts[4].toIntOrNull(16) ?: 40
@@ -348,7 +359,6 @@ class MainActivity : Activity() {
                             val rpmL = parts[8].toIntOrNull(16) ?: 0
                             val rpm = ((rpmH * 256) + rpmL) / 4
 
-                            // Исправленная скорость (коэффициент 1.32)
                             val speedRaw = parts[9].toIntOrNull(16) ?: 0
                             val speed = Math.round(speedRaw * 1.32).toInt()
 
@@ -375,43 +385,48 @@ class MainActivity : Activity() {
                             val stftRounded = Math.round(stftPercent * 10) / 10.0 
                             val sign = if (stftRounded > 0) "+" else ""
 
-                            // Исправленный "Шум", теперь Баланс цилиндров (знаковые байты)
                             val bal1Raw = parts[47].toIntOrNull(16) ?: 0
                             val bal2Raw = parts[48].toIntOrNull(16) ?: 0
                             val bal3Raw = parts[49].toIntOrNull(16) ?: 0
                             val bal4Raw = parts[50].toIntOrNull(16) ?: 0
-                            
                             val balance1 = if (bal1Raw > 127) bal1Raw - 256 else bal1Raw
                             val balance2 = if (bal2Raw > 127) bal2Raw - 256 else bal2Raw
                             val balance3 = if (bal3Raw > 127) bal3Raw - 256 else bal3Raw
                             val balance4 = if (bal4Raw > 127) bal4Raw - 256 else bal4Raw
                             
-                            // Формируем строку для CSV (13 параметров + 4 пустых слота для пропусков в конце)
-                            val csvLine = "$rpm;$coolant;$speed;$pedal;$uoz;$maf;$injRounded;$stftRounded;$voltage;$balance1;$balance2;$balance3;$balance4;;;;"
+                            // Формируем общую строку CSV вместе с последними пропусками из памяти
+                            val csvLine = "$rpm;$coolant;$speed;$pedal;$uoz;$maf;$injRounded;$stftRounded;$voltage;$balance1;$balance2;$balance3;$balance4;$lastMis1;$lastMis2;$lastMis3;$lastMis4"
                             csvLines.add(csvLine)
 
+                            // Формируем красивую строчку для UI
+                            val misfireText = if (lastMis1 > 0 || lastMis2 > 0 || lastMis3 > 0 || lastMis4 > 0) {
+                                "❌ Пропуски: Ц1=$lastMis1 | Ц2=$lastMis2 | Ц3=$lastMis3 | Ц4=$lastMis4"
+                            } else {
+                                "✅ Пропуски: Отсутствуют"
+                            }
+
+                            // Возвращаем единую карточку
                             return "🔥 Обороты: $rpm об/мин | 🌡 Антифриз: $coolant °C\n" +
                                    "🚗 Скорость: $speed км/ч | ⚡ Педаль: $pedal% | ⏱ УОЗ: $uoz°\n" +
                                    "💨 Воздух: $maf кг/ч | 💉 Впрыск: $injRounded мс | 💧 Корр: $sign$stftRounded%\n" +
-                                   "🔋 АКБ: $voltage В | ⚖️ Баланс цилиндров: [$balance1] [$balance2] [$balance3] [$balance4]"
+                                   "🔋 АКБ: $voltage В | ⚖️ Баланс: [$balance1] [$balance2] [$balance3] [$balance4]\n" +
+                                   misfireText
                         } catch (e: Exception) {
                             return null
                         }
                     }
                     
-                    // --- ПАКЕТ 02: ПРОПУСКИ ЗАЖИГАНИЯ ---
+                    // --- ПАКЕТ 02: ТОЛЬКО ЗАПОМИНАЕМ ПРОПУСКИ ---
                     else if (did == "0002" && parts.size > 42) {
                         try {
-                            val misfireCyl1 = (parts[35].toIntOrNull(16) ?: 0) * 256 + (parts[36].toIntOrNull(16) ?: 0)
-                            val misfireCyl2 = (parts[37].toIntOrNull(16) ?: 0) * 256 + (parts[38].toIntOrNull(16) ?: 0)
-                            val misfireCyl3 = (parts[39].toIntOrNull(16) ?: 0) * 256 + (parts[40].toIntOrNull(16) ?: 0)
-                            val misfireCyl4 = (parts[41].toIntOrNull(16) ?: 0) * 256 + (parts[42].toIntOrNull(16) ?: 0)
+                            // Обновляем память приложения последними данными о пропусках
+                            lastMis1 = (parts[35].toIntOrNull(16) ?: 0) * 256 + (parts[36].toIntOrNull(16) ?: 0)
+                            lastMis2 = (parts[37].toIntOrNull(16) ?: 0) * 256 + (parts[38].toIntOrNull(16) ?: 0)
+                            lastMis3 = (parts[39].toIntOrNull(16) ?: 0) * 256 + (parts[40].toIntOrNull(16) ?: 0)
+                            lastMis4 = (parts[41].toIntOrNull(16) ?: 0) * 256 + (parts[42].toIntOrNull(16) ?: 0)
                             
-                            // 13 пустых точек с запятой перед пропусками (чтобы они легли в правильные колонки Excel)
-                            val csvLine = ";;;;;;;;;;;;;$misfireCyl1;$misfireCyl2;$misfireCyl3;$misfireCyl4"
-                            csvLines.add(csvLine)
-
-                            return "❌ ПРОПУСКИ ЗАЖИГАНИЯ: Ц1=$misfireCyl1 | Ц2=$misfireCyl2 | Ц3=$misfireCyl3 | Ц4=$misfireCyl4"
+                            // ВОЗВРАЩАЕМ NULL, ЧТОБЫ КАРТОЧКА НЕ РИСОВАЛАСЬ ОТДЕЛЬНО
+                            return null
                         } catch (e: Exception) {
                             return null
                         }
