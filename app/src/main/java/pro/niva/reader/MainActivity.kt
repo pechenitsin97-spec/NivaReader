@@ -29,6 +29,9 @@ class MainActivity : Activity() {
     private val ecuParamsMap: MutableMap<String, List<Int>> = mutableMapOf()
     private val csvLines = mutableListOf<String>()
 
+    // Память для стабильного отображения коррекции при переключении пакетов
+    private var lastStft = 0.0
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -205,6 +208,7 @@ class MainActivity : Activity() {
     private fun readAndParseLogFile(uri: Uri) {
         contentContainer.removeAllViews()
         csvLines.clear()
+        lastStft = 0.0
         
         var totalEvents = 0
         var telemetryCount = 0
@@ -332,7 +336,6 @@ class MainActivity : Activity() {
                     }
                 }
 
-                // Единый разбор для пакетов 0001 и 0002 (оба содержат живые параметры мотора)
                 if (line.startsWith("Receive: 62") && (did == "0001" || did == "0002") && parts.size > 50) {
                     try {
                         val tempRaw = parts[4].toIntOrNull(16) ?: 40
@@ -363,10 +366,13 @@ class MainActivity : Activity() {
                         val pedalRaw = parts[22].toIntOrNull(16) ?: 0
                         val pedal = (pedalRaw * 100) / 255
 
-                        val stftRaw = parts[25].toIntOrNull(16) ?: 128
-                        val stftPercent = (stftRaw - 128) * 100.0 / 128.0
-                        val stftRounded = Math.round(stftPercent * 10) / 10.0 
-                        val sign = if (stftRounded > 0) "+" else ""
+                        // Коррекция только для пакета 0001
+                        if (did == "0001") {
+                            val stftRaw = parts[25].toIntOrNull(16) ?: 128
+                            val stftPercent = (stftRaw - 128) * 100.0 / 128.0
+                            lastStft = Math.round(stftPercent * 10) / 10.0 
+                        }
+                        val sign = if (lastStft > 0) "+" else ""
 
                         val bal1Raw = parts[47].toIntOrNull(16) ?: 0
                         val bal2Raw = parts[48].toIntOrNull(16) ?: 0
@@ -378,7 +384,7 @@ class MainActivity : Activity() {
                         val balance3 = if (bal3Raw > 127) bal3Raw - 256 else bal3Raw
                         val balance4 = if (bal4Raw > 127) bal4Raw - 256 else bal4Raw
 
-                        // Считываем пропуски, если это пакет 0002
+                        // Пропуски зажигания для пакета 0002
                         var misfire1 = 0
                         var misfire2 = 0
                         var misfire3 = 0
@@ -390,7 +396,7 @@ class MainActivity : Activity() {
                             misfire4 = (parts[41].toIntOrNull(16) ?: 0) * 256 + (parts[42].toIntOrNull(16) ?: 0)
                         }
 
-                        val csvLine = "$rpm;$coolant;$speed;$pedal;$uoz;$maf;$injRounded;$stftRounded;$voltage;$balance1;$balance2;$balance3;$balance4;$misfire1;$misfire2;$misfire3;$misfire4"
+                        val csvLine = "$rpm;$coolant;$speed;$pedal;$uoz;$maf;$injRounded;$lastStft;$voltage;$balance1;$balance2;$balance3;$balance4;$misfire1;$misfire2;$misfire3;$misfire4"
                         csvLines.add(csvLine)
 
                         val misfireText = if (misfire1 > 0 || misfire2 > 0 || misfire3 > 0 || misfire4 > 0) {
@@ -401,7 +407,7 @@ class MainActivity : Activity() {
 
                         return "🔥 Обороты: $rpm об/мин | 🌡 Антифриз: $coolant °C\n" +
                                "🚗 Скорость: $speed км/ч | ⚡ Педаль: $pedal% | ⏱ УОЗ: $uoz°\n" +
-                               "💨 Воздух: $maf кг/ч | 💉 Впрыск: $injRounded мс | 💧 Корр: $sign$stftRounded%\n" +
+                               "💨 Воздух: $maf кг/ч | 💉 Впрыск: $injRounded мс | 💧 Корр: $sign$lastStft%\n" +
                                "🔋 АКБ: $voltage В | ⚖️ Баланс: [$balance1] [$balance2] [$balance3] [$balance4]\n" +
                                misfireText
                     } catch (e: Exception) {
@@ -429,4 +435,3 @@ class MainActivity : Activity() {
         }
     }
 }
-
