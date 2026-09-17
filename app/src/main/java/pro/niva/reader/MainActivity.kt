@@ -302,14 +302,15 @@ class MainActivity : Activity() {
                         rpm, coolant, speed, pedal, uoz, maf, inj, stft, voltage, balance1, balance2, balance3, balance4)
                     csvLines.add(csvLine)
 
-                    // Красивая UI карточка
+                                        // Красивая UI карточка
                     return "🔵 ТЕЛЕМЕТРИЯ [0001]\n" +
                            "🔥 Обороты: ${String.format(Locale.US, "%.0f", rpm)} об/мин | 🌡 Темп: $coolant °C\n" +
-                           "🚗 Скорость: ${String.format(Locale.US, "%.1f", speed)} км/ч  | ⚡ Педаль: ${String.format(Locale.US, "%.1f", pedal)}%\n" +
-                           "💨 Воздух: ${String.format(Locale.US, "%.1f", maf)} кг/ч    | 💉 Впрыск: ${String.format(Locale.US, "%.2f", inj)} мс\n" +
-                           "💧 Коррекция: ${String.format(Locale.US, "%+.1f", stft)}%  | ⏱ УОЗ: $uoz°\n" +
+                           "🚗 Скорость: ${String.format(Locale.US, "%.1f", speed)} км/ч | ⚡ Педаль: ${String.format(Locale.US, "%.1f", pedal)}%\n" +
+                           "💨 Воздух: ${String.format(Locale.US, "%.1f", maf)} кг/ч | 💉 Впрыск: ${String.format(Locale.US, "%.2f", inj)} мс\n" +
+                           "💧 Коррекция: ${String.format(Locale.US, "%+.1f", stft)}% | ⏱ УОЗ: $uoz°\n" +
                            "🔋 АКБ: ${String.format(Locale.US, "%.1f", voltage)} В\n" +
                            "⚖️ Баланс: [$balance1] [$balance2] [$balance3] [$balance4]"
+
                 }
 
                 // --- ПАКЕТ 0002: ТОЛЬКО ПРОПУСКИ ---
