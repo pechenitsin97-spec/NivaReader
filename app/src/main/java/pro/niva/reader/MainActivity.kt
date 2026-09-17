@@ -47,7 +47,6 @@ class MainActivity : Activity() {
         menuLayout.orientation = LinearLayout.VERTICAL
         menuLayout.setPadding(0, 0, 0, 8)
 
-        // Кнопка открытия файла
         val btnOpenLog = Button(this)
         btnOpenLog.text = "📁 Открыть лог OpenDiag (.log / .txt)"
         btnOpenLog.layoutParams = LinearLayout.LayoutParams(
@@ -62,7 +61,6 @@ class MainActivity : Activity() {
         }
         menuLayout.addView(btnOpenLog)
         
-        // Кнопка сохранения CSV с отступом сверху
         btnSaveCsv = Button(this)
         btnSaveCsv.text = "💾 Сохранить в .csv (Excel)"
         
@@ -70,7 +68,7 @@ class MainActivity : Activity() {
             LinearLayout.LayoutParams.MATCH_PARENT, 
             LinearLayout.LayoutParams.WRAP_CONTENT
         )
-        saveParams.setMargins(0, 16, 0, 0) // <-- Добавили отступ 16 пикселей между кнопками!
+        saveParams.setMargins(0, 16, 0, 0)
         btnSaveCsv.layoutParams = saveParams
         
         btnSaveCsv.isEnabled = false 
@@ -249,7 +247,8 @@ class MainActivity : Activity() {
                             csvLines.add(it.replace(";", ","))
                         }
                         csvLines.add("-------------------------")
-                        csvLines.add("Обороты;Антифриз_C;Скорость_кмч;Педаль_%;УОЗ_град;Воздух_ДМРВ;Впрыск_мс;Коррекция_%;АКБ_В;Шум_Ц1;Шум_Ц2;Шум_Ц3;Шум_Ц4")
+                        // Обновленная шапка CSV: добавлено 4 колонки пропусков в конец
+                        csvLines.add("Обороты;Антифриз_C;Скорость_кмч;Педаль_%;УОЗ_град;Воздух_ДМРВ;Впрыск_мс;Коррекция_%;АКБ_В;Баланс_Ц1;Баланс_Ц2;Баланс_Ц3;Баланс_Ц4;Пропуски_Ц1;Пропуски_Ц2;Пропуски_Ц3;Пропуски_Ц4")
                         
                         isHeaderAdded = true
                     }
@@ -264,14 +263,17 @@ class MainActivity : Activity() {
                             
                             if (decodedPid.startsWith("📝")) {
                                 cardLayout.setBackgroundColor(Color.parseColor("#E6FFFA"))
+                            } else if (decodedPid.startsWith("❌")) {
+                                // Выделяем карточки с пропусками красноватым оттенком
+                                cardLayout.setBackgroundColor(Color.parseColor("#FFF0F0"))
                             } else {
                                 if (telemetryCount % 2 == 0) {
                                     cardLayout.setBackgroundColor(Color.parseColor("#F8F9FA"))
                                 } else {
                                     cardLayout.setBackgroundColor(Color.parseColor("#E9ECEF"))
                                 }
-                                telemetryCount++
                             }
+                            telemetryCount++
                             
                             val lp = LinearLayout.LayoutParams(
                                 LinearLayout.LayoutParams.MATCH_PARENT,
@@ -311,9 +313,11 @@ class MainActivity : Activity() {
         try {
             val clean = line.replace("Receive:", "").trim()
             val parts = clean.split(" ")
+            
             if (parts.size >= 3) {
                 val did = "${parts[1]}${parts[2]}"
                 
+                // --- Разбор текстовых идентификаторов (Паспорт ЭБУ) ---
                 if (did.startsWith("F1") || did.startsWith("90") || did.startsWith("009") || did.startsWith("00A") || did.startsWith("02")) {
                     val sb = StringBuilder()
                     for (i in 3 until parts.size) {
@@ -331,54 +335,86 @@ class MainActivity : Activity() {
                     }
                 }
 
-                if (did == "0001" && parts.size > 50 && line.startsWith("Receive: 62")) {
-                    try {
-                        val tempRaw = parts[4].toIntOrNull(16) ?: 40
-                        val coolant = tempRaw - 40
+                // Убеждаемся, что перед нами нужный тип пакета
+                if (line.startsWith("Receive: 62")) {
+                    
+                    // --- ПАКЕТ 01: БАЗОВЫЕ ПАРАМЕТРЫ ---
+                    if (did == "0001" && parts.size > 50) {
+                        try {
+                            val tempRaw = parts[4].toIntOrNull(16) ?: 40
+                            val coolant = tempRaw - 40
 
-                        val rpmH = parts[7].toIntOrNull(16) ?: 0
-                        val rpmL = parts[8].toIntOrNull(16) ?: 0
-                        val rpm = ((rpmH * 256) + rpmL) / 4
+                            val rpmH = parts[7].toIntOrNull(16) ?: 0
+                            val rpmL = parts[8].toIntOrNull(16) ?: 0
+                            val rpm = ((rpmH * 256) + rpmL) / 4
 
-                        val speed = parts[9].toIntOrNull(16) ?: 0
+                            // Исправленная скорость (коэффициент 1.32)
+                            val speedRaw = parts[9].toIntOrNull(16) ?: 0
+                            val speed = Math.round(speedRaw * 1.32).toInt()
 
-                        val uozRaw = parts[10].toIntOrNull(16) ?: 0
-                        val uoz = if (uozRaw > 127) uozRaw - 256 else uozRaw
+                            val uozRaw = parts[10].toIntOrNull(16) ?: 0
+                            val uoz = if (uozRaw > 127) uozRaw - 256 else uozRaw
 
-                        val injH = parts[11].toIntOrNull(16) ?: 0
-                        val injL = parts[12].toIntOrNull(16) ?: 0
-                        val inj = ((injH * 256) + injL) / 200.0
-                        val injRounded = Math.round(inj * 100) / 100.0
+                            val injH = parts[11].toIntOrNull(16) ?: 0
+                            val injL = parts[12].toIntOrNull(16) ?: 0
+                            val inj = ((injH * 256) + injL) / 200.0
+                            val injRounded = Math.round(inj * 100) / 100.0
 
-                        val mafH = parts[13].toIntOrNull(16) ?: 0
-                        val mafL = parts[14].toIntOrNull(16) ?: 0
-                        val maf = ((mafH * 256) + mafL) / 10.0
+                            val mafH = parts[13].toIntOrNull(16) ?: 0
+                            val mafL = parts[14].toIntOrNull(16) ?: 0
+                            val maf = ((mafH * 256) + mafL) / 10.0
 
-                        val voltRaw = parts[21].toIntOrNull(16) ?: 0
-                        val voltage = voltRaw / 10.0
+                            val voltRaw = parts[21].toIntOrNull(16) ?: 0
+                            val voltage = voltRaw / 10.0
 
-                        val pedalRaw = parts[22].toIntOrNull(16) ?: 0
-                        val pedal = (pedalRaw * 100) / 255
+                            val pedalRaw = parts[22].toIntOrNull(16) ?: 0
+                            val pedal = (pedalRaw * 100) / 255
 
-                        val stftRaw = parts[25].toIntOrNull(16) ?: 128
-                        val stftPercent = (stftRaw - 128) * 100.0 / 128.0
-                        val stftRounded = Math.round(stftPercent * 10) / 10.0 
-                        val sign = if (stftRounded > 0) "+" else ""
+                            val stftRaw = parts[25].toIntOrNull(16) ?: 128
+                            val stftPercent = (stftRaw - 128) * 100.0 / 128.0
+                            val stftRounded = Math.round(stftPercent * 10) / 10.0 
+                            val sign = if (stftRounded > 0) "+" else ""
 
-                        val noise1 = parts[47].toIntOrNull(16) ?: 0
-                        val noise2 = parts[48].toIntOrNull(16) ?: 0
-                        val noise3 = parts[49].toIntOrNull(16) ?: 0
-                        val noise4 = parts[50].toIntOrNull(16) ?: 0
-                        
-                        val csvLine = "$rpm;$coolant;$speed;$pedal;$uoz;$maf;$injRounded;$stftRounded;$voltage;$noise1;$noise2;$noise3;$noise4"
-                        csvLines.add(csvLine)
+                            // Исправленный "Шум", теперь Баланс цилиндров (знаковые байты)
+                            val bal1Raw = parts[47].toIntOrNull(16) ?: 0
+                            val bal2Raw = parts[48].toIntOrNull(16) ?: 0
+                            val bal3Raw = parts[49].toIntOrNull(16) ?: 0
+                            val bal4Raw = parts[50].toIntOrNull(16) ?: 0
+                            
+                            val balance1 = if (bal1Raw > 127) bal1Raw - 256 else bal1Raw
+                            val balance2 = if (bal2Raw > 127) bal2Raw - 256 else bal2Raw
+                            val balance3 = if (bal3Raw > 127) bal3Raw - 256 else bal3Raw
+                            val balance4 = if (bal4Raw > 127) bal4Raw - 256 else bal4Raw
+                            
+                            // Формируем строку для CSV (13 параметров + 4 пустых слота для пропусков в конце)
+                            val csvLine = "$rpm;$coolant;$speed;$pedal;$uoz;$maf;$injRounded;$stftRounded;$voltage;$balance1;$balance2;$balance3;$balance4;;;;"
+                            csvLines.add(csvLine)
 
-                        return "🔥 Обороты: $rpm об/мин | 🌡 Антифриз: $coolant °C\n" +
-                               "🚗 Скорость: $speed км/ч | ⚡ Педаль: $pedal% | ⏱ УОЗ: $uoz°\n" +
-                               "💨 Воздух: $maf кг/ч | 💉 Впрыск: $injRounded мс | 💧 Корр: $sign$stftRounded%\n" +
-                               "🔋 АКБ: $voltage В | 📊 Шум (Цил 1-4): [$noise1] [$noise2] [$noise3] [$noise4]"
-                    } catch (e: Exception) {
-                        return null
+                            return "🔥 Обороты: $rpm об/мин | 🌡 Антифриз: $coolant °C\n" +
+                                   "🚗 Скорость: $speed км/ч | ⚡ Педаль: $pedal% | ⏱ УОЗ: $uoz°\n" +
+                                   "💨 Воздух: $maf кг/ч | 💉 Впрыск: $injRounded мс | 💧 Корр: $sign$stftRounded%\n" +
+                                   "🔋 АКБ: $voltage В | ⚖️ Баланс цилиндров: [$balance1] [$balance2] [$balance3] [$balance4]"
+                        } catch (e: Exception) {
+                            return null
+                        }
+                    }
+                    
+                    // --- ПАКЕТ 02: ПРОПУСКИ ЗАЖИГАНИЯ ---
+                    else if (did == "0002" && parts.size > 42) {
+                        try {
+                            val misfireCyl1 = (parts[35].toIntOrNull(16) ?: 0) * 256 + (parts[36].toIntOrNull(16) ?: 0)
+                            val misfireCyl2 = (parts[37].toIntOrNull(16) ?: 0) * 256 + (parts[38].toIntOrNull(16) ?: 0)
+                            val misfireCyl3 = (parts[39].toIntOrNull(16) ?: 0) * 256 + (parts[40].toIntOrNull(16) ?: 0)
+                            val misfireCyl4 = (parts[41].toIntOrNull(16) ?: 0) * 256 + (parts[42].toIntOrNull(16) ?: 0)
+                            
+                            // 13 пустых точек с запятой перед пропусками (чтобы они легли в правильные колонки Excel)
+                            val csvLine = ";;;;;;;;;;;;;$misfireCyl1;$misfireCyl2;$misfireCyl3;$misfireCyl4"
+                            csvLines.add(csvLine)
+
+                            return "❌ ПРОПУСКИ ЗАЖИГАНИЯ: Ц1=$misfireCyl1 | Ц2=$misfireCyl2 | Ц3=$misfireCyl3 | Ц4=$misfireCyl4"
+                        } catch (e: Exception) {
+                            return null
+                        }
                     }
                 }
             }
