@@ -34,7 +34,7 @@ class MainActivity : Activity() {
     private val ecuParamsMap: MutableMap<String, List<Int>> = mutableMapOf()
     private val csvLines = mutableListOf<String>()
 
-    // Состояние темы: по умолчанию true (темная гаражная тема)
+    // По умолчанию темная гаражная тема включена
     private var isDarkTheme = true
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -91,7 +91,7 @@ class MainActivity : Activity() {
         }
         menuLayout.addView(btnSaveCsv)
 
-        // Кнопка переключения тем
+        // Кнопка переключения темы
         btnThemeToggle = Button(this)
         btnThemeToggle.setTextColor(Color.WHITE)
         val themeParams = LinearLayout.LayoutParams(
@@ -130,7 +130,7 @@ class MainActivity : Activity() {
 
         setContentView(mainLayout)
 
-        // Применяем тему при старте
+        // Применяем тему при запуске
         applyTheme()
 
         try {
@@ -142,59 +142,53 @@ class MainActivity : Activity() {
         }
     }
 
-    // Метод применения цветов интерфейса в зависимости от темы
     private fun applyTheme() {
-    if (isDarkTheme) {
-        mainLayout.setBackgroundColor(Color.parseColor("#121212")) // Глубокий гаражный графит
-        title.setTextColor(Color.parseColor("#FFFFFF"))
-        statusText.setTextColor(Color.parseColor("#9CA3AF"))
-        
-        btnOpenLog.setBackgroundColor(Color.parseColor("#2563EB"))
-        btnSaveCsv.setBackgroundColor(Color.parseColor("#059669"))
-        btnThemeToggle.text = "☀️ Светлая тема"
-        btnThemeToggle.setBackgroundColor(Color.parseColor("#374151"))
+        if (isDarkTheme) {
+            mainLayout.setBackgroundColor(Color.parseColor("#121212"))
+            title.setTextColor(Color.parseColor("#FFFFFF"))
+            statusText.setTextColor(Color.parseColor("#9CA3AF"))
+            
+            btnOpenLog.setBackgroundColor(Color.parseColor("#2563EB"))
+            btnSaveCsv.setBackgroundColor(Color.parseColor("#059669"))
+            btnThemeToggle.text = "☀️ Светлая тема"
+            btnThemeToggle.setBackgroundColor(Color.parseColor("#374151"))
 
-        // Безопасная покраска статус-бара для темной темы
-        window.statusBarColor = Color.parseColor("#121212")
-    } else {
-        mainLayout.setBackgroundColor(Color.parseColor("#F0F2F5")) // Светло-серый фон
-        title.setTextColor(Color.parseColor("#1A1A1D"))
-        statusText.setTextColor(Color.parseColor("#4B5563"))
-        
-        btnOpenLog.setBackgroundColor(Color.parseColor("#3B82F6"))
-        btnSaveCsv.setBackgroundColor(Color.parseColor("#10B981"))
-        btnThemeToggle.text = "🌙 Тёмная тема"
-        btnThemeToggle.setBackgroundColor(Color.parseColor("#4B5563"))
-
-        // Безопасная покраска статус-бара для светлой темы
-        window.statusBarColor = Color.parseColor("#F0F2F5")
-    }
-
-    // Перекрашиваем уже выведенные карточки на экране
-    for (i in 0 until contentContainer.childCount) {
-        val card = contentContainer.getChildAt(i) as? LinearLayout ?: continue
-        val tv = card.getChildAt(0) as? TextView
-        val text = tv?.text.toString()
-
-        if (text.contains("ПАСПОРТ")) {
-            card.setBackgroundColor(if (isDarkTheme) Color.parseColor("#042f2e") else Color.parseColor("#E6FFFA"))
-        } else if (text.contains("ВНИМАНИЕ")) {
-            card.setBackgroundColor(if (isDarkTheme) Color.parseColor("#450a0a") else Color.parseColor("#FEE2E2"))
-        } else if (text.contains("ДИАГНОСТИКА ПРОПУСКОВ") || text.contains("ЧИСТО")) {
-            card.setBackgroundColor(if (isDarkTheme) Color.parseColor("#14532d") else Color.parseColor("#ECFCCB"))
+            window.statusBarColor = Color.parseColor("#121212")
         } else {
-            if (i % 2 == 0) {
-                card.setBackgroundColor(if (isDarkTheme) Color.parseColor("#1E293B") else Color.parseColor("#EBF5FF"))
-            } else {
-                card.setBackgroundColor(if (isDarkTheme) Color.parseColor("#1F2937") else Color.WHITE)
-            }
+            mainLayout.setBackgroundColor(Color.parseColor("#F0F2F5"))
+            title.setTextColor(Color.parseColor("#1A1A1D"))
+            statusText.setTextColor(Color.parseColor("#4B5563"))
+            
+            btnOpenLog.setBackgroundColor(Color.parseColor("#3B82F6"))
+            btnSaveCsv.setBackgroundColor(Color.parseColor("#10B981"))
+            btnThemeToggle.text = "🌙 Тёмная тема"
+            btnThemeToggle.setBackgroundColor(Color.parseColor("#4B5563"))
+
+            window.statusBarColor = Color.parseColor("#F0F2F5")
         }
-        tv?.setTextColor(if (isDarkTheme) Color.parseColor("#F3F4F6") else Color.parseColor("#111827"))
+
+        // Перекрашиваем карточки телеметрии на лету
+        for (i in 0 until contentContainer.childCount) {
+            val card = contentContainer.getChildAt(i) as? LinearLayout ?: continue
+            val tv = card.getChildAt(0) as? TextView
+            val text = tv?.text.toString()
+
+            if (text.contains("ПАСПОРТ")) {
+                card.setBackgroundColor(if (isDarkTheme) Color.parseColor("#042f2e") else Color.parseColor("#E6FFFA"))
+            } else if (text.contains("ВНИМАНИЕ")) {
+                card.setBackgroundColor(if (isDarkTheme) Color.parseColor("#450a0a") else Color.parseColor("#FEE2E2"))
+            } else if (text.contains("ДИАГНОСТИКА ПРОПУСКОВ") || text.contains("ЧИСТО")) {
+                card.setBackgroundColor(if (isDarkTheme) Color.parseColor("#14532d") else Color.parseColor("#ECFCCB"))
+            } else {
+                if (i % 2 == 0) {
+                    card.setBackgroundColor(if (isDarkTheme) Color.parseColor("#1E293B") else Color.parseColor("#EBF5FF"))
+                } else {
+                    card.setBackgroundColor(if (isDarkTheme) Color.parseColor("#1F2937") else Color.WHITE)
+                }
+            }
+            tv?.setTextColor(if (isDarkTheme) Color.parseColor("#F3F4F6") else Color.parseColor("#111827"))
+        }
     }
-}
-
-}
-
 
     private fun loadEcuParamsSafe(assetManager: AssetManager): Map<String, List<Int>> {
         val map = mutableMapOf<String, List<Int>>()
@@ -286,7 +280,6 @@ class MainActivity : Activity() {
                             cardLayout.orientation = LinearLayout.VERTICAL
                             cardLayout.setPadding(24, 20, 24, 20)
                             
-                            // Раскраска карточек с учетом выбранной темы
                             if (uiCard.contains("ПАСПОРТ")) {
                                 cardLayout.setBackgroundColor(if (isDarkTheme) Color.parseColor("#042f2e") else Color.parseColor("#E6FFFA"))
                             } else if (uiCard.contains("ВНИМАНИЕ")) {
@@ -447,3 +440,4 @@ class MainActivity : Activity() {
         }
     }
 }
+
