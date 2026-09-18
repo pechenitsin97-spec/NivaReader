@@ -143,55 +143,30 @@ class MainActivity : Activity() {
     }
 
     private fun applyTheme() {
-    if (isDarkTheme) {
-        mainLayout.setBackgroundColor(Color.parseColor("#121212")) // Глубокий гаражный графит
-        title.setTextColor(Color.parseColor("#FFFFFF"))
-        statusText.setTextColor(Color.parseColor("#9CA3AF"))
-        
-        btnOpenLog.setBackgroundColor(Color.parseColor("#2563EB"))
-        btnSaveCsv.setBackgroundColor(Color.parseColor("#059669"))
-        btnThemeToggle.text = "☀️ Светлая тема"
-        btnThemeToggle.setBackgroundColor(Color.parseColor("#374151"))
+        if (isDarkTheme) {
+            mainLayout.setBackgroundColor(Color.parseColor("#121212"))
+            title.setTextColor(Color.parseColor("#FFFFFF"))
+            statusText.setTextColor(Color.parseColor("#9CA3AF"))
+            
+            btnOpenLog.setBackgroundColor(Color.parseColor("#2563EB"))
+            btnSaveCsv.setBackgroundColor(Color.parseColor("#059669"))
+            btnThemeToggle.text = "☀️ Светлая тема"
+            btnThemeToggle.setBackgroundColor(Color.parseColor("#374151"))
 
-        // Статус-бар тёмный
-        window.statusBarColor = Color.parseColor("#121212")
-    } else {
-        mainLayout.setBackgroundColor(Color.parseColor("#F0F2F5")) // Светло-серый фон
-        title.setTextColor(Color.parseColor("#1A1A1D"))
-        statusText.setTextColor(Color.parseColor("#4B5563"))
-        
-        btnOpenLog.setBackgroundColor(Color.parseColor("#3B82F6"))
-        btnSaveCsv.setBackgroundColor(Color.parseColor("#10B981"))
-        btnThemeToggle.text = "🌙 Тёмная тема"
-        btnThemeToggle.setBackgroundColor(Color.parseColor("#4B5563"))
-
-        // Делаем статус-бар тёмно-серым, чтобы белые значки телефона всегда были отлично видны
-        window.statusBarColor = Color.parseColor("#1F2937")
-    }
-
-    // Перекрашиваем уже выведенные карточки на экране
-    for (i in 0 until contentContainer.childCount) {
-        val card = contentContainer.getChildAt(i) as? LinearLayout ?: continue
-        val tv = card.getChildAt(0) as? TextView
-        val text = tv?.text.toString()
-
-        if (text.contains("ПАСПОРТ")) {
-            card.setBackgroundColor(if (isDarkTheme) Color.parseColor("#042f2e") else Color.parseColor("#E6FFFA"))
-        } else if (text.contains("ВНИМАНИЕ")) {
-            card.setBackgroundColor(if (isDarkTheme) Color.parseColor("#450a0a") else Color.parseColor("#FEE2E2"))
-        } else if (text.contains("ДИАГНОСТИКА ПРОПУСКОВ") || text.contains("ЧИСТО")) {
-            card.setBackgroundColor(if (isDarkTheme) Color.parseColor("#14532d") else Color.parseColor("#ECFCCB"))
+            window.statusBarColor = Color.parseColor("#121212")
         } else {
-            if (i % 2 == 0) {
-                card.setBackgroundColor(if (isDarkTheme) Color.parseColor("#1E293B") else Color.parseColor("#EBF5FF"))
-            } else {
-                card.setBackgroundColor(if (isDarkTheme) Color.parseColor("#1F2937") else Color.WHITE)
-            }
-        }
-        tv?.setTextColor(if (isDarkTheme) Color.parseColor("#F3F4F6") else Color.parseColor("#111827"))
-    }
-}
+            mainLayout.setBackgroundColor(Color.parseColor("#F0F2F5"))
+            title.setTextColor(Color.parseColor("#1A1A1D"))
+            statusText.setTextColor(Color.parseColor("#4B5563"))
+            
+            btnOpenLog.setBackgroundColor(Color.parseColor("#3B82F6"))
+            btnSaveCsv.setBackgroundColor(Color.parseColor("#10B981"))
+            btnThemeToggle.text = "🌙 Тёмная тема"
+            btnThemeToggle.setBackgroundColor(Color.parseColor("#4B5563"))
 
+            // Тёмно-серый статус-бар, чтобы белые значки телефона были всегда видны
+            window.statusBarColor = Color.parseColor("#1F2937")
+        }
 
         // Перекрашиваем карточки телеметрии на лету
         for (i in 0 until contentContainer.childCount) {
