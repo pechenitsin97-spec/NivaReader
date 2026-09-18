@@ -20,9 +20,13 @@ import java.util.Locale
 
 class MainActivity : Activity() {
 
+    private lateinit var mainLayout: LinearLayout
     private lateinit var contentContainer: LinearLayout
     private lateinit var statusText: TextView
+    private lateinit var title: TextView
+    private lateinit var btnOpenLog: Button
     private lateinit var btnSaveCsv: Button
+    private lateinit var btnThemeToggle: Button
     
     private val PICK_FILE_REQUEST = 101
     private val CREATE_CSV_REQUEST = 102
@@ -30,19 +34,20 @@ class MainActivity : Activity() {
     private val ecuParamsMap: MutableMap<String, List<Int>> = mutableMapOf()
     private val csvLines = mutableListOf<String>()
 
+    // Состояние темы: по умолчанию true (темная гаражная тема)
+    private var isDarkTheme = true
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val mainLayout = LinearLayout(this)
+        mainLayout = LinearLayout(this)
         mainLayout.orientation = LinearLayout.VERTICAL
         mainLayout.setPadding(16, 16, 16, 16)
-        mainLayout.setBackgroundColor(Color.parseColor("#F0F2F5")) // Светло-серый фон приложения
 
-        val title = TextView(this)
+        title = TextView(this)
         title.text = "Niva Reader: Pro Diagnostics"
         title.textSize = 20f
         title.setTypeface(null, Typeface.BOLD)
-        title.setTextColor(Color.parseColor("#1A1A1D"))
         title.setPadding(0, 0, 0, 12)
         mainLayout.addView(title)
 
@@ -50,9 +55,8 @@ class MainActivity : Activity() {
         menuLayout.orientation = LinearLayout.VERTICAL
         menuLayout.setPadding(0, 0, 0, 12)
 
-        val btnOpenLog = Button(this)
+        btnOpenLog = Button(this)
         btnOpenLog.text = "📁 ОТКРЫТЬ ЛОГ OPEN DIAG"
-        btnOpenLog.setBackgroundColor(Color.parseColor("#3B82F6"))
         btnOpenLog.setTextColor(Color.WHITE)
         btnOpenLog.layoutParams = LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT, 
@@ -68,7 +72,6 @@ class MainActivity : Activity() {
         
         btnSaveCsv = Button(this)
         btnSaveCsv.text = "💾 СОХРАНИТЬ .CSV ДЛЯ EXCEL"
-        btnSaveCsv.setBackgroundColor(Color.parseColor("#10B981"))
         btnSaveCsv.setTextColor(Color.WHITE)
         
         val saveParams = LinearLayout.LayoutParams(
@@ -88,11 +91,25 @@ class MainActivity : Activity() {
         }
         menuLayout.addView(btnSaveCsv)
 
+        // Кнопка переключения тем
+        btnThemeToggle = Button(this)
+        btnThemeToggle.setTextColor(Color.WHITE)
+        val themeParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, 
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+        themeParams.setMargins(0, 12, 0, 0)
+        btnThemeToggle.layoutParams = themeParams
+        btnThemeToggle.setOnClickListener {
+            isDarkTheme = !isDarkTheme
+            applyTheme()
+        }
+        menuLayout.addView(btnThemeToggle)
+
         mainLayout.addView(menuLayout)
 
         statusText = TextView(this)
         statusText.textSize = 13f
-        statusText.setTextColor(Color.parseColor("#4B5563"))
         statusText.setPadding(0, 4, 0, 12)
         mainLayout.addView(statusText)
 
@@ -113,12 +130,60 @@ class MainActivity : Activity() {
 
         setContentView(mainLayout)
 
+        // Применяем тему при старте
+        applyTheme()
+
         try {
             val loaded = loadEcuParamsSafe(assets)
             ecuParamsMap.putAll(loaded)
             statusText.text = "Готово к работе. Ожидание лог-файла..."
         } catch (e: Exception) {
             statusText.text = "Готово. Откройте лог."
+        }
+    }
+
+    // Метод применения цветов интерфейса в зависимости от темы
+    private fun applyTheme() {
+        if (isDarkTheme) {
+            mainLayout.setBackgroundColor(Color.parseColor("#121212")) // Глубокий гаражный графит
+            title.setTextColor(Color.parseColor("#FFFFFF"))
+            statusText.setTextColor(Color.parseColor("#9CA3AF"))
+            
+            btnOpenLog.setBackgroundColor(Color.parseColor("#2563EB"))
+            btnSaveCsv.setBackgroundColor(Color.parseColor("#059669"))
+            btnThemeToggle.text = "☀️ Светлая тема"
+            btnThemeToggle.setBackgroundColor(Color.parseColor("#374151"))
+        } else {
+            mainLayout.setBackgroundColor(Color.parseColor("#F0F2F5")) // Светло-серый фон
+            title.setTextColor(Color.parseColor("#1A1A1D"))
+            statusText.setTextColor(Color.parseColor("#4B5563"))
+            
+            btnOpenLog.setBackgroundColor(Color.parseColor("#3B82F6"))
+            btnSaveCsv.setBackgroundColor(Color.parseColor("#10B981"))
+            btnThemeToggle.text = "🌙 Тёмная тема"
+            btnThemeToggle.setBackgroundColor(Color.parseColor("#4B5563"))
+        }
+
+        // Перекрашиваем уже выведенные карточки на экране, если лог уже открыт
+        for (i in 0 until contentContainer.childCount) {
+            val card = contentContainer.getChildAt(i) as? LinearLayout ?: continue
+            val tv = card.getChildAt(0) as? TextView
+            val text = tv?.text.toString()
+
+            if (text.contains("ПАСПОРТ")) {
+                card.setBackgroundColor(if (isDarkTheme) Color.parseColor("#042f2e") else Color.parseColor("#E6FFFA"))
+            } else if (text.contains("ВНИМАНИЕ")) {
+                card.setBackgroundColor(if (isDarkTheme) Color.parseColor("#450a0a") else Color.parseColor("#FEE2E2"))
+            } else if (text.contains("ДИАГНОСТИКА ПРОПУСКОВ") || text.contains("ЧИСТО")) {
+                card.setBackgroundColor(if (isDarkTheme) Color.parseColor("#14532d") else Color.parseColor("#ECFCCB"))
+            } else {
+                if (i % 2 == 0) {
+                    card.setBackgroundColor(if (isDarkTheme) Color.parseColor("#1E293B") else Color.parseColor("#EBF5FF"))
+                } else {
+                    card.setBackgroundColor(if (isDarkTheme) Color.parseColor("#1F2937") else Color.WHITE)
+                }
+            }
+            tv?.setTextColor(if (isDarkTheme) Color.parseColor("#F3F4F6") else Color.parseColor("#111827"))
         }
     }
 
@@ -212,19 +277,18 @@ class MainActivity : Activity() {
                             cardLayout.orientation = LinearLayout.VERTICAL
                             cardLayout.setPadding(24, 20, 24, 20)
                             
-                            // Умная раскраска карточек с "Зеброй" для телеметрии
+                            // Раскраска карточек с учетом выбранной темы
                             if (uiCard.contains("ПАСПОРТ")) {
-                                cardLayout.setBackgroundColor(Color.parseColor("#E6FFFA"))
+                                cardLayout.setBackgroundColor(if (isDarkTheme) Color.parseColor("#042f2e") else Color.parseColor("#E6FFFA"))
                             } else if (uiCard.contains("ВНИМАНИЕ")) {
-                                cardLayout.setBackgroundColor(Color.parseColor("#FEE2E2")) // Красный для пропусков
+                                cardLayout.setBackgroundColor(if (isDarkTheme) Color.parseColor("#450a0a") else Color.parseColor("#FEE2E2"))
                             } else if (uiCard.contains("ЧИСТО")) {
-                                cardLayout.setBackgroundColor(Color.parseColor("#ECFCCB")) // Светло-зеленый для чистых пропусков
+                                cardLayout.setBackgroundColor(if (isDarkTheme) Color.parseColor("#14532d") else Color.parseColor("#ECFCCB"))
                             } else {
-                                // Обычная телеметрия (0001) - делаем зебру
                                 if (telemetryCount % 2 == 0) {
-                                    cardLayout.setBackgroundColor(Color.parseColor("#EBF5FF")) // Нежно-голубой
+                                    cardLayout.setBackgroundColor(if (isDarkTheme) Color.parseColor("#1E293B") else Color.parseColor("#EBF5FF"))
                                 } else {
-                                    cardLayout.setBackgroundColor(Color.WHITE) // Белый
+                                    cardLayout.setBackgroundColor(if (isDarkTheme) Color.parseColor("#1F2937") else Color.WHITE)
                                 }
                             }
                             
@@ -239,7 +303,7 @@ class MainActivity : Activity() {
                             tvPid.text = uiCard
                             tvPid.textSize = 14f
                             tvPid.setTypeface(Typeface.MONOSPACE, Typeface.NORMAL)
-                            tvPid.setTextColor(Color.parseColor("#111827"))
+                            tvPid.setTextColor(if (isDarkTheme) Color.parseColor("#F3F4F6") else Color.parseColor("#111827"))
                             tvPid.setLineSpacing(0f, 1.3f)
                             cardLayout.addView(tvPid)
 
@@ -283,7 +347,6 @@ class MainActivity : Activity() {
                     }
                 }
 
-                // --- ПАКЕТ 0001: ТОЛЬКО ДАТЧИКИ ---
                 if (did == "0001" && parts.size > 50) {
                     val tempRaw = parts[4].toIntOrNull(16) ?: 40
                     val coolant = tempRaw - 40
@@ -320,7 +383,6 @@ class MainActivity : Activity() {
                         rpm, coolant, speed, pedal, uoz, maf, inj, stft, voltage, balance1, balance2, balance3, balance4)
                     csvLines.add(csvLine)
 
-                    // Красивая UI карточка без заголовка
                     return "🔥 Обороты: ${String.format(Locale.US, "%.0f", rpm)} об/мин | 🌡 Темп: $coolant °C\n" +
                            "🚗 Скорость: ${String.format(Locale.US, "%.1f", speed)} км/ч | ⚡ Педаль: ${String.format(Locale.US, "%.1f", pedal)}%\n" +
                            "💨 Воздух: ${String.format(Locale.US, "%.1f", maf)} кг/ч | 💉 Впрыск: ${String.format(Locale.US, "%.2f", inj)} мс\n" +
@@ -329,7 +391,6 @@ class MainActivity : Activity() {
                            "⚖️ Баланс: [$balance1] [$balance2] [$balance3] [$balance4]"
                 }
 
-                // --- ПАКЕТ 0002: ТОЛЬКО ПРОПУСКИ ---
                 if (did == "0002" && parts.size > 42) {
                     val tempRaw = parts[4].toIntOrNull(16) ?: 40
                     val coolant = tempRaw - 40
@@ -377,4 +438,3 @@ class MainActivity : Activity() {
         }
     }
 }
-
