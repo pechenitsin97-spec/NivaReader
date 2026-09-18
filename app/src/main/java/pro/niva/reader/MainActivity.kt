@@ -382,7 +382,7 @@ class MainActivity : Activity() {
                     val balance3 = if (bal3Raw > 127) bal3Raw - 256 else bal3Raw
                     val balance4 = if (bal4Raw > 127) bal4Raw - 256 else bal4Raw
 
-                    val csvLine = String.format(Locale.US, "%.0f;%d;%.1f;%.1f;%d;%.1f;%.2f;%+.1f;%.1f;%d;%d;%d;%d;;;;",
+                    val csvLine = String.format("%.0f;%d;%.1f;%.1f;%d;%.1f;%.2f;%+.1f;%.1f;%d;%d;%d;%d;;;;",
                         rpm, coolant, speed, pedal, uoz, maf, inj, stft, voltage, balance1, balance2, balance3, balance4)
                     csvLines.add(csvLine)
 
@@ -406,7 +406,7 @@ class MainActivity : Activity() {
                     val misfire3 = (parts[39].toIntOrNull(16) ?: 0) * 256 + (parts[40].toIntOrNull(16) ?: 0)
                     val misfire4 = (parts[41].toIntOrNull(16) ?: 0) * 256 + (parts[42].toIntOrNull(16) ?: 0)
 
-                    val csvLine = String.format(Locale.US, "%.0f;%d;;;;;;;;;;;;%d;%d;%d;%d",
+                    val csvLine = String.format("%.0f;%d;;;;;;;;;;;;%d;%d;%d;%d",
                         rpm, coolant, misfire1, misfire2, misfire3, misfire4)
                     csvLines.add(csvLine)
 
@@ -441,4 +441,3 @@ class MainActivity : Activity() {
         }
     }
 }
-
