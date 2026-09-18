@@ -154,9 +154,8 @@ class MainActivity : Activity() {
         btnThemeToggle.text = "☀️ Светлая тема"
         btnThemeToggle.setBackgroundColor(Color.parseColor("#374151"))
 
-        // Системная строка состояния — тёмная, иконки белые
+        // Безопасная покраска статус-бара для темной темы
         window.statusBarColor = Color.parseColor("#121212")
-        androidx.core.view.WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBar = false
     } else {
         mainLayout.setBackgroundColor(Color.parseColor("#F0F2F5")) // Светло-серый фон
         title.setTextColor(Color.parseColor("#1A1A1D"))
@@ -167,9 +166,8 @@ class MainActivity : Activity() {
         btnThemeToggle.text = "🌙 Тёмная тема"
         btnThemeToggle.setBackgroundColor(Color.parseColor("#4B5563"))
 
-        // Системная строка состояния — светлая, иконки тёмные
+        // Безопасная покраска статус-бара для светлой темы
         window.statusBarColor = Color.parseColor("#F0F2F5")
-        androidx.core.view.WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBar = true
     }
 
     // Перекрашиваем уже выведенные карточки на экране
@@ -193,6 +191,8 @@ class MainActivity : Activity() {
         }
         tv?.setTextColor(if (isDarkTheme) Color.parseColor("#F3F4F6") else Color.parseColor("#111827"))
     }
+}
+
 }
 
 
