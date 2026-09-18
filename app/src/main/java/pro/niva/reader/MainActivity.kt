@@ -269,7 +269,8 @@ class MainActivity : Activity() {
                         csvLines.add("--- ИНФОРМАЦИЯ О ЛОГЕ ---")
                         finalHeader.split("\n").forEach { csvLines.add(it.replace(";", ",")) }
                         csvLines.add("-------------------------")
-                        csvLines.add("Обороты;Антифриз_C;Скорость_кмч;Педаль_%;УОЗ_град;Воздух_ДМРВ;Впрыск_мс;Коррекция_%;АКБ_В;Баланс_Ц1;Баланс_Ц2;Баланс_Ц3;Баланс_Ц4;Пропуски_Ц1;Пропуски_Ц2;Пропуски_Ц3;Пропуски_Ц4")
+                        csvLines.add("Обороты,Антифриз_C,Скорость_кмч,Педаль_%,УОЗ_град,Воздух_ДМРВ,Впрыск_мс,Коррекция_%,АКБ_В,Баланс_Ц1,Баланс_Ц2,Баланс_Ц3,Баланс_Ц4,Пропуски_Ц1,Пропуски_Ц2,Пропуски_Ц3,Пропуски_Ц4")
+
                         isHeaderAdded = true
                     }
                     
@@ -382,9 +383,9 @@ class MainActivity : Activity() {
                     val balance3 = if (bal3Raw > 127) bal3Raw - 256 else bal3Raw
                     val balance4 = if (bal4Raw > 127) bal4Raw - 256 else bal4Raw
 
-                    val csvLine = String.format("%.0f;%d;%.1f;%.1f;%d;%.1f;%.2f;%+.1f;%.1f;%d;%d;%d;%d;;;;",
-                        rpm, coolant, speed, pedal, uoz, maf, inj, stft, voltage, balance1, balance2, balance3, balance4)
-                    csvLines.add(csvLine)
+                    val csvLine = String.format(Locale.US, "%.0f,%d,%.1f,%.1f,%d,%.1f,%.2f,%+.1f,%.1f,%d,%d,%d,%d,,,,",
+    rpm, coolant, speed, pedal, uoz, maf, inj, stft, voltage, balance1, balance2, balance3, balance4)
+
 
                     return "🔥 Обороты: ${String.format(Locale.US, "%.0f", rpm)} об/мин | 🌡 Темп: $coolant °C\n" +
                            "🚗 Скорость: ${String.format(Locale.US, "%.1f", speed)} км/ч | ⚡ Педаль: ${String.format(Locale.US, "%.1f", pedal)}%\n" +
@@ -406,9 +407,9 @@ class MainActivity : Activity() {
                     val misfire3 = (parts[39].toIntOrNull(16) ?: 0) * 256 + (parts[40].toIntOrNull(16) ?: 0)
                     val misfire4 = (parts[41].toIntOrNull(16) ?: 0) * 256 + (parts[42].toIntOrNull(16) ?: 0)
 
-                    val csvLine = String.format("%.0f;%d;;;;;;;;;;;;%d;%d;%d;%d",
-                        rpm, coolant, misfire1, misfire2, misfire3, misfire4)
-                    csvLines.add(csvLine)
+                  val csvLine = String.format(Locale.US, "%.0f,%d,,,,,,,,,,,,%d,%d,%d,%d",
+    rpm, coolant, misfire1, misfire2, misfire3, misfire4)
+
 
                     if (misfire1 > 0 || misfire2 > 0 || misfire3 > 0 || misfire4 > 0) {
                         return "🔴 ВНИМАНИЕ: ПРОПУСКИ ЗАЖИГАНИЯ!\n" +
